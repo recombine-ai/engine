@@ -1,0 +1,29 @@
+{
+    "name": "@recombine-ai/engine",
+    "version": "0.1.0",
+    "description": "Recombine AI engine for creating conversational AI agents",
+    "main": "build/index.js",
+    "types": "build/index.d.ts",
+    "author": "Recombine AI limited",
+    "license": "MIT",
+    "private": false,
+    "scripts": {
+        "dev": "tsc -w",
+        "build": "tsc",
+        "prepublishOnly": "npm run build",
+        "test": "vitest"
+    },
+    "devDependencies": {
+        "@types/node": "^22.8.1",
+        "@types/nunjucks": "^3.2.6",
+        "prettier": "^3.3.3",
+        "typescript": "^5.7.3",
+        "vitest": "^3.0.6"
+    },
+    "dependencies": {
+        "nunjucks": "^3.2.4",
+        "openai": "^4.68.4",
+        "zod": "^3.23.8",
+        "zod-to-json-schema": "^3.23.5"
+    }
+}
