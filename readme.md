@@ -17,7 +17,7 @@ A TypeScript library for building agentic workflows for conversational AI.
 ## Installation
 
 ```sh
-npm install @recombine/ai-engine
+npm install @recombine-ai/engine
 ```
 
 ## Basic Usage
