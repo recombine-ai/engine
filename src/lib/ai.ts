@@ -10,9 +10,35 @@ import { Logger, Message } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
 import { sleep } from 'openai/core'
 
+export type Models =
+    | 'o3-mini-2025-01-31'
+    | 'o1-preview-2024-09-12'
+    | 'gpt-4o-2024-11-20'
+    | 'o1-2024-12-17'
+
+export interface BasicStep {
+    /** Step name (used mainly for debugging) */
+    name: string
+
+    /** Check a condition, whether the whole step should be run or not */
+    runIf?: (messages: Messages) => boolean | Promise<boolean>
+
+    /** Use when you need to do some action when LLM's response received */
+    execute: () => Promise<unknown>
+
+    /** Error handler called if an error occurred during LLM API call or in `execute` function */
+    onError: (error: string) => Promise<unknown>
+}
+
 export interface Step {
     /** Step name (used mainly for debugging) */
     name: string
+
+    /** Check a condition, whether the whole step should be run or not */
+    runIf?: (messages: Messages) => boolean | Promise<boolean>
+
+    /** Specify AI Model. Default gpt-4o */
+    model?: Models
 
     /**
      * Prompt can be a simple string or a link to a file, loaded with `loadFile` function which
@@ -21,7 +47,7 @@ export interface Step {
     prompt: string | File
 
     /**
-     * In case you want a structured from LLM, define a schema using {@link zod https://zod.dev/}
+     * In case you want a structured output from LLM, define a schema using {@link zod https://zod.dev/}
      * library.
      */
     schema?: ZodSchema
@@ -32,17 +58,15 @@ export interface Step {
     /** Additional data to be inserted into prompt */
     context?: Record<string, unknown>
 
-    /** Check a condition, whether the `execute` function should run or not */
-    shouldExecute?: (reply: string) => boolean | Promise<boolean>
-
-    /** Check a condition, whether the whole step should be run or not */
-    runIf?: (messages: Messages) => boolean | Promise<boolean>
-
     /** Use when you need to do some action when LLM's response received */
     execute: (reply: string) => Promise<unknown>
 
-    /** Error handler called if an error occurred during LLM API call or in `execute` function */
-    onError: (error: string) => Promise<unknown>
+    /**
+     * Check a condition, whether the `execute` function should run or not
+     * @deprecated use `runIf` to check if the step should be run, use if in `execute` to check
+     * if it should be executed
+     **/
+    shouldExecute?: (reply: string) => boolean | Promise<boolean>
 
     /**
      * When provided, throws an error if the step is invoked more times than `maxAttempts`.
@@ -50,12 +74,8 @@ export interface Step {
      * rewinds by reviewers. NOTE that it doesn't work on steps without `shouldExecute` method.
      */
     maxAttempts?: number
-}
 
-export interface DumbStep {
-    name: string
-    runIf?: () => boolean | Promise<boolean>
-    execute: () => Promise<unknown>
+    /** Error handler called if an error occurred during LLM API call or in `execute` function */
     onError: (error: string) => Promise<unknown>
 }
 
@@ -108,7 +128,7 @@ export function createAIEngine(cfg: EngineConfig = {}) {
             throw new Error('OpenAI API key is not set')
         },
     }
-    function createStep<T extends Step | DumbStep>(step: T): T {
+    function createStep<T extends Step | BasicStep>(step: T): T {
         return step
     }
 
@@ -135,7 +155,7 @@ export function createAIEngine(cfg: EngineConfig = {}) {
             addMessage: (sender: Message['sender'], text: string) =>
                 messages.push({ sender, text }),
             addDirective: (message: string) => {
-                logger.debug(`AI Core: add directive: ${message}`)
+                logger.debug(`AI Engine: add directive: ${message}`)
                 messages.push({ sender: 'system', text: message })
             },
             directiveFormat: (formatter: (msg: Message) => string) => {
@@ -156,7 +176,7 @@ export function createAIEngine(cfg: EngineConfig = {}) {
         }
     }
 
-    async function createWorkflow(...steps: Array<Step | DumbStep>) {
+    async function createWorkflow(...steps: Array<Step | BasicStep>) {
         const apiKey = await tokenStorage.getToken()
         let shouldRun = true
         let currentStep = 0
@@ -164,7 +184,7 @@ export function createAIEngine(cfg: EngineConfig = {}) {
         const attempts = new Map<Step, number>()
         return {
             terminate: () => {
-                logger.debug('AI Core: Terminating conversation...')
+                logger.debug('AI Engine: Terminating conversation...')
                 shouldRun = false
             },
             run: async (messages: Messages) => {
@@ -177,11 +197,11 @@ export function createAIEngine(cfg: EngineConfig = {}) {
                     if (!step.runIf || (await step.runIf(messages))) {
                         const action = makeAction(cfg.sendAction, 'AI', step.name)
                         await action('started')
-                        logger.debug(`AI Core: Step: ${step.name}`)
+                        logger.debug(`AI Engine: Step: ${step.name}`)
                         if ('prompt' in step) {
                             await runStep(step, messages)
                         } else {
-                            await runDumbStep(step)
+                            await runDumbStep(step, messages)
                         }
                         await action('completed')
                     }
@@ -212,8 +232,11 @@ export function createAIEngine(cfg: EngineConfig = {}) {
                 let response: string | null = null
                 let prompt =
                     typeof step.prompt === 'string' ? step.prompt : await step.prompt.content()
-                logger.debug('AI Core: context', step.context)
-                logger.debug('AI Core: messages', messages.toString(step.ignoreDirectives || false))
+                logger.debug('AI Engine: context', step.context)
+                logger.debug(
+                    'AI Engine: messages',
+                    messages.toString(step.ignoreDirectives || false),
+                )
                 if (step.context) {
                     nunjucks.configure({ autoescape: true, trimBlocks: true, lstripBlocks: true })
                     prompt = nunjucks.renderString(prompt, step.context)
@@ -224,22 +247,23 @@ export function createAIEngine(cfg: EngineConfig = {}) {
                     prompt,
                     messages.toString(step.ignoreDirectives || false),
                     step.schema,
+                    step.model,
                 )
                 if (!response) {
                     throw new Error('No response from OpenAI')
                 }
-                logger.debug(`AI Core: response: ${response}`)
+                logger.debug(`AI Engine: response: ${response}`)
                 if (typeof step.shouldExecute === 'function') {
                     if (await step.shouldExecute(response)) {
-                        logger.debug(`AI Core: executing`)
+                        logger.debug(`AI Engine: executing`)
                         checkAttempts(step)
                         await step.execute(response)
                     } else {
                         resetAttempts(step)
-                        logger.debug(`AI Core: skipping`)
+                        logger.debug(`AI Engine: skipping`)
                     }
                 } else {
-                    logger.debug(`AI Core: replying`)
+                    logger.debug(`AI Engine: replying`)
                     await step.execute(response)
                 }
             } catch (error) {
@@ -249,14 +273,14 @@ export function createAIEngine(cfg: EngineConfig = {}) {
             }
         }
 
-        async function runDumbStep(step: DumbStep) {
+        async function runDumbStep(step: BasicStep, messages: Messages) {
             try {
-                if (!step.runIf || (await step.runIf())) {
+                if (!step.runIf || (await step.runIf(messages))) {
                     await step.execute()
                 }
             } catch (error) {
                 console.error(
-                    `AI Core: error in dumb step ${step.name}: ${(error as Error).message}`,
+                    `AI Engine: error in dumb step ${step.name}: ${(error as Error).message}`,
                 )
                 await step.onError((error as Error).message)
                 shouldRun = false
@@ -284,7 +308,12 @@ export function createAIEngine(cfg: EngineConfig = {}) {
         systemPrompt: string,
         messages: string,
         schema?: ZodSchema,
+        model: Models = 'gpt-4o-2024-11-20',
     ) {
+        logger.debug('AI Engine: model:', model)
+        logger.debug('----------- RENDERED PROMPT ---------------')
+        logger.debug(systemPrompt)
+        logger.debug('-------------------------------------------')
         if (apiKey === '__TESTING__') {
             await sleep(100)
             return schema
@@ -293,28 +322,12 @@ export function createAIEngine(cfg: EngineConfig = {}) {
         }
         const client = new OpenAI({ apiKey })
 
-        logger.log('----------- RENDERED PROMPT ---------------')
-        logger.log(systemPrompt)
-        logger.log('---------------------------------------')
-
-        let format: ChatCompletionCreateParamsBase['response_format'] = { type: 'text' }
-        if (schema) {
-            format = {
-                type: 'json_schema',
-                json_schema: {
-                    name: 'detector_response',
-                    schema: zodToJsonSchema(schema),
-                },
-            }
-        }
         const response: OpenAI.Chat.ChatCompletion = await client.chat.completions.create({
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: messages },
             ],
-            model: 'gpt-4o',
-            response_format: format,
-            temperature: 0.1,
+            ...getOpenAiOptions(model, schema),
         })
 
         if (!response.choices[0].message.content) {
@@ -329,7 +342,7 @@ export function createAIEngine(cfg: EngineConfig = {}) {
 
         return {
             content: async () => {
-                logger.debug('AI Core: loading prompt:', path)
+                logger.debug('AI Engine: loading prompt:', path)
                 return fs.promises.readFile(join(basePath, path), 'utf-8')
             },
         }
@@ -341,4 +354,32 @@ export function createAIEngine(cfg: EngineConfig = {}) {
         loadFile,
         makeMessagesList,
     }
+}
+
+function getOpenAiOptions(model: Models, schema?: ZodSchema) {
+    const options: Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'> = {
+        model,
+    }
+    const isReasoningModel = ['o3-', 'o1-', 'o1-preview-'].some((m) => model.startsWith(m))
+    if (isReasoningModel) {
+        if (!model.startsWith('o1-preview-')) {
+            options.reasoning_effort = 'high'
+        }
+    } else {
+        options.temperature = 0.1
+    }
+
+    if (schema) {
+        options.response_format = {
+            type: 'json_schema',
+            json_schema: {
+                name: 'detector_response',
+                schema: zodToJsonSchema(schema),
+            },
+        }
+    } else {
+        options.response_format = { type: 'text' }
+    }
+
+    return options
 }

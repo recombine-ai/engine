@@ -1,6 +1,6 @@
 {
     "name": "@recombine-ai/engine",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Recombine AI engine for creating conversational AI agents",
     "main": "build/index.js",
     "types": "build/index.d.ts",
@@ -23,7 +23,7 @@
     "dependencies": {
         "nunjucks": "^3.2.4",
         "openai": "^4.68.4",
-        "zod": "^3.23.8",
+        "zod": "3.23.8",
         "zod-to-json-schema": "^3.23.5"
     }
 }
