@@ -1,4 +1,4 @@
-# TypeDoc API
+# API Overview
 
 ## Interfaces
 

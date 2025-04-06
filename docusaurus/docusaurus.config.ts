@@ -109,7 +109,7 @@ const config: Config = {
         groupOrder: ["Classes", "Interfaces", "Enums"],
         sidebar: { pretty: true },
         textContentMappings: {
-          "title.indexPage": "TypeDoc API",
+          "title.indexPage": "API Overview",
           "title.memberPage": "{name}",
         },
         parametersFormat: "table",
