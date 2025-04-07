@@ -98,7 +98,7 @@ const config: Config = {
         "entryPoints": ["../src/index.ts"],
         "tsconfig": "../tsconfig.json", // Path to your TypeScript config file
         // or "src" if you have multiple entry points
-        "out": "../docs/api",            // Where to put the generated documentation
+        "out": "docs/api",            // Where to put the generated documentation
         "excludeExternals": true,
         "excludePrivate": true,
         "excludeProtected": true,
