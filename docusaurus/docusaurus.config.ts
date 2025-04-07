@@ -6,7 +6,7 @@ const config: Config = {
   title: 'Recombine AI Docs',
   tagline: 'Conversational AI agents platform',
   favicon: 'img/favicon.ico',
-
+  
   // The production URL of your site
   url: 'https://docs.recombine.ai',
   // The base path under which your site is served
@@ -98,7 +98,7 @@ const config: Config = {
         "entryPoints": ["../src/index.ts"],
         "tsconfig": "../tsconfig.json", // Path to your TypeScript config file
         // or "src" if you have multiple entry points
-        "out": "docs/api",            // Where to put the generated documentation
+        "out": "../docs/api",            // Where to put the generated documentation
         "excludeExternals": true,
         "excludePrivate": true,
         "excludeProtected": true,
