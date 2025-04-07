@@ -3,42 +3,165 @@
 const typedocSidebar = { items: [
   {
     "type": "category",
-    "label": "Interfaces",
+    "label": "Namespaces",
     "items": [
       {
-        "type": "doc",
-        "id": "api/interfaces/Action",
-        "label": "Action"
+        "type": "category",
+        "label": "AIEngine",
+        "items": [
+          {
+            "type": "category",
+            "label": "Functions",
+            "items": [
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/AIEngine/functions/createAIEngine",
+                "label": "createAIEngine"
+              }
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Interfaces",
+            "items": [
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/AIEngine/interfaces/AIEngine",
+                "label": "AIEngine"
+              },
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/AIEngine/interfaces/Conversation",
+                "label": "Conversation"
+              },
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/AIEngine/interfaces/EngineConfig",
+                "label": "EngineConfig"
+              },
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/AIEngine/interfaces/File",
+                "label": "File"
+              },
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/AIEngine/interfaces/LLMStep",
+                "label": "LLMStep"
+              },
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/AIEngine/interfaces/Message",
+                "label": "Message"
+              },
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/AIEngine/interfaces/ProgrammaticStep",
+                "label": "ProgrammaticStep"
+              },
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/AIEngine/interfaces/Workflow",
+                "label": "Workflow"
+              }
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Type Aliases",
+            "items": [
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/AIEngine/type-aliases/BasicModel",
+                "label": "BasicModel"
+              }
+            ]
+          }
+        ],
+        "link": {
+          "type": "doc",
+          "id": "api/@recombine-ai/namespaces/AIEngine/index"
+        }
       },
       {
-        "type": "doc",
-        "id": "api/interfaces/Logger",
-        "label": "Logger"
+        "type": "category",
+        "label": "Bosun",
+        "items": [
+          {
+            "type": "category",
+            "label": "Functions",
+            "items": [
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/Bosun/functions/createTestAgentFactory",
+                "label": "createTestAgentFactory"
+              }
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Interfaces",
+            "items": [
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/Bosun/interfaces/TesAgentFactoryProps",
+                "label": "TesAgentFactoryProps"
+              },
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/Bosun/interfaces/TestAgent",
+                "label": "TestAgent"
+              }
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Type Aliases",
+            "items": [
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/Bosun/type-aliases/TestAgentFactory",
+                "label": "TestAgentFactory"
+              }
+            ]
+          }
+        ],
+        "link": {
+          "type": "doc",
+          "id": "api/@recombine-ai/namespaces/Bosun/index"
+        }
       },
       {
-        "type": "doc",
-        "id": "api/interfaces/Message",
-        "label": "Message"
-      },
-      {
-        "type": "doc",
-        "id": "api/interfaces/Schedule",
-        "label": "Schedule"
-      },
-      {
-        "type": "doc",
-        "id": "api/interfaces/Scheduler",
-        "label": "Scheduler"
-      },
-      {
-        "type": "doc",
-        "id": "api/interfaces/TesAgentFactoryProps",
-        "label": "TesAgentFactoryProps"
-      },
-      {
-        "type": "doc",
-        "id": "api/interfaces/TestAgent",
-        "label": "TestAgent"
+        "type": "category",
+        "label": "Scheduler",
+        "items": [
+          {
+            "type": "category",
+            "label": "Interfaces",
+            "items": [
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/Scheduler/interfaces/Scheduler",
+                "label": "Scheduler"
+              }
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Type Aliases",
+            "items": [
+              {
+                "type": "doc",
+                "id": "api/@recombine-ai/namespaces/Scheduler/type-aliases/ScheduleAction",
+                "label": "ScheduleAction"
+              }
+            ]
+          }
+        ],
+        "link": {
+          "type": "doc",
+          "id": "api/@recombine-ai/namespaces/Scheduler/index"
+        }
       }
     ]
   },
@@ -48,11 +171,6 @@ const typedocSidebar = { items: [
     "items": [
       {
         "type": "doc",
-        "id": "api/functions/createAIEngine",
-        "label": "createAIEngine"
-      },
-      {
-        "type": "doc",
         "id": "api/functions/createContext",
         "label": "createContext"
       },
@@ -60,11 +178,6 @@ const typedocSidebar = { items: [
         "type": "doc",
         "id": "api/functions/createMock",
         "label": "createMock"
-      },
-      {
-        "type": "doc",
-        "id": "api/functions/createTestAgentFactory",
-        "label": "createTestAgentFactory"
       },
       {
         "type": "doc",
@@ -85,13 +198,29 @@ const typedocSidebar = { items: [
   },
   {
     "type": "category",
-    "label": "Type Aliases",
+    "label": "Interfaces",
     "items": [
       {
         "type": "doc",
-        "id": "api/type-aliases/AiEngine",
-        "label": "AiEngine"
+        "id": "api/interfaces/Action",
+        "label": "Action"
       },
+      {
+        "type": "doc",
+        "id": "api/interfaces/Logger",
+        "label": "Logger"
+      },
+      {
+        "type": "doc",
+        "id": "api/interfaces/Schedule",
+        "label": "Schedule"
+      }
+    ]
+  },
+  {
+    "type": "category",
+    "label": "Type Aliases",
+    "items": [
       {
         "type": "doc",
         "id": "api/type-aliases/Context",
@@ -101,11 +230,6 @@ const typedocSidebar = { items: [
         "type": "doc",
         "id": "api/type-aliases/SendAction",
         "label": "SendAction"
-      },
-      {
-        "type": "doc",
-        "id": "api/type-aliases/TestAgentFactory",
-        "label": "TestAgentFactory"
       }
     ]
   }

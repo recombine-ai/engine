@@ -1,7 +1,7 @@
-export { type AiEngine, createAIEngine } from './lib/ai'
+export { AIEngine } from './lib/ai'
 
-export { delayFactory, type Schedule } from './lib/schedule'
+export { delayFactory, Schedule } from './lib/schedule'
 
-export * from './lib/interfaces'
+export {Scheduler, Logger} from './lib/interfaces'
 
 export * from './lib/bosun'

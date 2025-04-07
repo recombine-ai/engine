@@ -104,14 +104,15 @@ const config: Config = {
         "excludeProtected": true,
         "readme": "none",
         "plugin": ["typedoc-plugin-markdown"], // optional plugin for markdown output    
+        "groupOrder": ["Namespaces", "Functions", "*"],
         indexFormat: "table",
         disableSources: true,
-        groupOrder: ["Classes", "Interfaces", "Enums"],
         sidebar: { pretty: true },
         textContentMappings: {
           "title.indexPage": "API Overview",
           "title.memberPage": "{name}",
         },
+        logLevel: "Verbose",
         parametersFormat: "table",
         enumMembersFormat: "table",
         useCodeBlocks: true,
