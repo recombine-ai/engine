@@ -32,3 +32,9 @@
 | ------ | ------ |
 | [Context](type-aliases/Context.md) | - |
 | [SendAction](type-aliases/SendAction.md) | - |
+
+## Variables
+
+| Variable | Description |
+| ------ | ------ |
+| [createAIEngine](variables/createAIEngine.md) | - |

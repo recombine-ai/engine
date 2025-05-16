@@ -232,6 +232,17 @@ const typedocSidebar = { items: [
         "label": "SendAction"
       }
     ]
+  },
+  {
+    "type": "category",
+    "label": "Variables",
+    "items": [
+      {
+        "type": "doc",
+        "id": "api/variables/createAIEngine",
+        "label": "createAIEngine"
+      }
+    ]
   }
 ]};
 module.exports = typedocSidebar.items;
