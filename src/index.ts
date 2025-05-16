@@ -1,7 +1,11 @@
-export { type AiEngine, createAIEngine } from './lib/ai'
+import { AIEngine } from './lib/ai'
 
-export { delayFactory, type Schedule } from './lib/schedule'
+export { AIEngine } from './lib/ai'
 
-export * from './lib/interfaces'
+export const createAIEngine = AIEngine.createAIEngine
+
+export { delayFactory, Schedule } from './lib/schedule'
+
+export { Scheduler, Logger } from './lib/interfaces'
 
 export * from './lib/bosun'

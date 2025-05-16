@@ -11,7 +11,8 @@
         "dev": "tsc -w",
         "build": "tsc",
         "prepublishOnly": "npm run build",
-        "test": "vitest"
+        "test": "vitest",
+        "docs": "cd docusaurus && yarn build --out-dir ../docs && cd .."
     },
     "devDependencies": {
         "@types/node": "^22.8.1",
