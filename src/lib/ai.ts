@@ -11,11 +11,15 @@ import { makeAction, SendAction } from './bosun/action'
 import { sleep } from 'openai/core'
 
 export namespace AIEngine {
-    export type BasicModel =
+    /**
+     * Represents a basic model name for LLMs.
+     */
+    export type BasicModel = 
         | 'o3-mini-2025-01-31'
         | 'o1-preview-2024-09-12'
         | 'gpt-4o-2024-11-20'
         | 'o1-2024-12-17'
+        | (string & {}) // prevents compiler from simplifying the type to just `string`
 
     export interface ProgrammaticStep {
         /** Step name for debugging */
@@ -574,7 +578,7 @@ export namespace AIEngine {
             systemPrompt: string,
             messages: string,
             schema?: ZodSchema,
-            model: BasicModel = 'gpt-4o-2024-11-20',
+            model: BasicModel = 'gpt-4o-2024-08-06',
         ) {
             logger.debug('AI Engine: model:', model)
             logger.debug('----------- RENDERED PROMPT ---------------')
