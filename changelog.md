@@ -1,5 +1,9 @@
 # Changelog
 
+### 0.3.0 → 0.3.1 (unstable)
+
+-   Fix: allow other models (as a string)
+
 ### 0.2.0 → 0.3.0 (unstable)
 
 Breaking changes:
