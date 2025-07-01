@@ -600,10 +600,6 @@ describe('ScheduleQuery', () => {
             vi.setSystemTime(new Date('2024-09-16T14:00:00+01:00'))
         })
 
-        it('check current date within schedule', () => {
-            const query = createScheduleQuery(schedule)
-            expect(query.isValid()).toBe(true)
-        })
         it('checks date within schedule', () => {
             const query = createScheduleQuery(schedule)
             expect(query.isValid(new Date('2024-09-16T14:00:00+01:00'))).toBe(true)

@@ -70,7 +70,7 @@ export class ScheduleQuery {
      * Checks if a specified date is within the schedule,
      * if no date provided, checks if _now_ is withing the schedule
      */
-    isValid(date = new Date()) {
+    isValid(date: Date) {
         const next = this.nextValidDate(date)
         return date.toISOString() === next.toISOString()
     }
