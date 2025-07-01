@@ -4,34 +4,51 @@
  */
 export function delayFactory(schedule: Schedule) {
     return function getNextTimePoint(delay: Delay): Date {
-        const date = new Date()
-        const { holidays, timeZone, workingHours } = schedule
+        return createScheduleQuery(schedule).nextValidDate(delay)
+    }
+}
 
-        const delayMs = getDelayTimeInMs(delay)
+/**
+ * Query over an object that follows {@link Schedule} interface
+ */
+export class ScheduleQuery {
+    constructor(private schedule: Schedule) {}
 
-        const [_, offsetDiffBefore] = convertToTimeZone(date, timeZone)
+    /**
+     * Find next closest date after specified delay within the schedule
+     */
+    nextValidDate(delay: Delay): Date
+
+    /**
+     * Finds next closest date that follows a specified date within the schedule
+     */
+    nextValidDate(date: Date): Date
+
+    nextValidDate(dateOrDelay: Date | Delay) {
+        const date = dateOrDelay instanceof Date ? dateOrDelay : new Date()
+
+        const [_, offsetDiffBefore] = convertToTimeZone(date, this.schedule.timeZone)
         const localOffsetBefore = date.getTimezoneOffset() * 60 * 1000
 
-        date.setTime(date.getTime() + delayMs)
+        if (!(dateOrDelay instanceof Date)) {
+            const delayMs = getDelayTimeInMs(dateOrDelay)
+            date.setTime(date.getTime() + delayMs)
+        }
 
-        let [targetTzDate, offsetDiff] = convertToTimeZone(date, timeZone)
+        let [targetTzDate, offsetDiff] = convertToTimeZone(date, this.schedule.timeZone)
         const localOffsetAfterMs = targetTzDate.getTimezoneOffset() * 60 * 1000
         const localOffsetChange = localOffsetAfterMs - localOffsetBefore
         const targetTzOffsetChange = offsetDiff - offsetDiffBefore
 
-        if (workingHours && workingHours?.length > 0) {
-            targetTzDate = getNextWorkingDate(targetTzDate, workingHours)
-        }
-
-        if (holidays && isHoliday(targetTzDate, holidays)) {
-            targetTzDate = skipHoliday(targetTzDate, holidays)
+        if (this.schedule.workingHours && this.schedule.workingHours?.length > 0) {
+            targetTzDate = getNextWorkingDate(targetTzDate, this.schedule)
         }
 
         const targetDate = new Date(
             targetTzDate.getTime() + offsetDiff + targetTzOffsetChange + localOffsetChange,
         )
 
-        const [, offsetDiffTz] = convertToTimeZone(targetDate, timeZone)
+        const [, offsetDiffTz] = convertToTimeZone(targetDate, this.schedule.timeZone)
 
         const targetOffsetTzChange = offsetDiffTz - offsetDiff
 
@@ -43,6 +60,24 @@ export function delayFactory(schedule: Schedule) {
                 targetOffsetTzChange,
         )
     }
+
+    /** Returns next date  the schedule starting from _now_ */
+    next() {
+        return this.nextValidDate(new Date())
+    }
+
+    /**
+     * Checks if a specified date is within the schedule,
+     * if no date provided, checks if _now_ is within the schedule
+     */
+    isValid(date: Date) {
+        const next = this.nextValidDate(date)
+        return date.toISOString() === next.toISOString()
+    }
+}
+
+export function createScheduleQuery(schedule: Schedule) {
+    return new ScheduleQuery(schedule)
 }
 
 function getDelayTimeInMs(time: Delay): number {
@@ -66,15 +101,18 @@ function convertToTimeZone(date: Date, timeZone: string) {
     return [convertedDate, offsetMS] as [Date, number]
 }
 
-function getNextWorkingDate(date: Date, workingHours: TimeRange[]): Date {
+function getNextWorkingDate(date: Date, schedule: Schedule): Date {
     const currentDate = new Date(date)
 
     while (true) {
         const currentDay = getDayOfWeek(currentDate)
 
-        const daySchedule = workingHours.find((interval) => interval.days.includes(currentDay))
+        const daySchedule = schedule.workingHours!.find((interval) =>
+            interval.days.includes(currentDay),
+        )
 
-        if (daySchedule) {
+        const holiday = schedule.holidays && isHoliday(currentDate, schedule)
+        if (daySchedule && !holiday) {
             const [fromHours, fromMinutes] = daySchedule.from.split(':').map(Number)
             const [toHours, toMinutes] = daySchedule.to.split(':').map(Number)
 
@@ -113,16 +151,12 @@ function getDayOfWeek(date: Date): WeekDays {
     return days[date.getDay()]
 }
 
-function isHoliday(date: Date, holidays: DateFmt[]): boolean {
-    const dateString = date.toISOString().split('T')[0]
-    return holidays.includes(dateString as DateFmt)
-}
-
-function skipHoliday(date: Date, holidays: DateFmt[]): Date {
-    while (isHoliday(date, holidays)) {
-        date.setDate(date.getDate() + 1)
-    }
-    return date
+function isHoliday(date: Date, schedule: Schedule): boolean {
+    if (!schedule.holidays) return false
+    const offset = date.getTimezoneOffset()
+    const utcDate = new Date(date.getTime() - offset * 60 * 1000)
+    const dateString = utcDate.toISOString().split('T')[0]
+    return schedule.holidays.includes(dateString as DateFmt)
 }
 
 type Delay =

@@ -4,7 +4,7 @@ export { AIEngine } from './lib/ai'
 
 export const createAIEngine = AIEngine.createAIEngine
 
-export { delayFactory, Schedule } from './lib/schedule'
+export { delayFactory, Schedule, createScheduleQuery } from './lib/schedule'
 
 export { Scheduler, Logger } from './lib/interfaces'
 

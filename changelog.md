@@ -1,5 +1,12 @@
 # Changelog
 
+### 0.3.1 → 0.3.2 (unstable)
+
+-   add `ScheduleQuery` class that provides three additional capabilities compared to `delayFactory`:
+    -   `query.nextValidDate(date: Date)` – to find next closest date after a specific date (rather than delay)
+    -   `query.next()` – gets closest date within provided schedule
+    -   `query.isValid(date)` – checks if provided date is within the schedule
+
 ### 0.3.0 → 0.3.1 (unstable)
 
 -   Fix: allow other models (as a string)
