@@ -15,7 +15,7 @@ export class ScheduleQuery {
     constructor(private schedule: Schedule) {}
 
     /**
-     * Find next closest date after specified delay withing the schedule
+     * Find next closest date after specified delay within the schedule
      */
     nextValidDate(delay: Delay): Date
 
@@ -61,14 +61,14 @@ export class ScheduleQuery {
         )
     }
 
-    /** Returns next date withing the schedule starting from _now_ */
+    /** Returns next date  the schedule starting from _now_ */
     next() {
         return this.nextValidDate(new Date())
     }
 
     /**
      * Checks if a specified date is within the schedule,
-     * if no date provided, checks if _now_ is withing the schedule
+     * if no date provided, checks if _now_ is within the schedule
      */
     isValid(date: Date) {
         const next = this.nextValidDate(date)
