@@ -562,6 +562,7 @@ export namespace AIEngine {
                     }
                     return stepTrace;
                 } catch (error) {
+                    // FIXME: this doesn't terminate the workflow
                     await step.onError((error as Error).message)
                     shouldRun = false
                     return stepTrace;
