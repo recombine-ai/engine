@@ -60,7 +60,7 @@ const myCoordinator = engine.createStep({
 
 // Create and run workflow
 const workflow = await engine.createWorkflow(mainStep, myReviewer, myCoordinator)
-const response = await workflow.run(messages)
+const { reply, trace } = await workflow.run(messages)
 ```
 
 ## Main concepts

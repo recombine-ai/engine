@@ -1,5 +1,11 @@
 # Changelog
 
+### 0.3.2 → 0.4.o (unstable)
+
+Breaking changes:
+
+-   `await workflow.run()` now returns an object with `reply: string` and `trace` object
+
 ### 0.3.1 → 0.3.2 (unstable)
 
 -   add `ScheduleQuery` class that provides three additional capabilities compared to `delayFactory`:
