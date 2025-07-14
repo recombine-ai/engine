@@ -14,7 +14,7 @@ export namespace AIEngine {
     /**
      * Represents a basic model name for LLMs.
      */
-    export type BasicModel = 
+    export type BasicModel =
         | 'o3-mini-2025-01-31'
         | 'o1-preview-2024-09-12'
         | 'gpt-4o-2024-11-20'
@@ -106,6 +106,15 @@ export namespace AIEngine {
     }
 
     /**
+     * A useful trace of a step execution. It's properties are filled during the execution. There is no guarantee that any of them will be filled.
+     */
+    export type StepTrace = {
+        renderedPrompt?: string;
+        receivedContext?: Record<string, unknown>;
+        receivedPrompt?: string;
+    }
+
+    /**
      * An AI workflow composed of steps.
      */
     export interface Workflow {
@@ -120,7 +129,7 @@ export namespace AIEngine {
          * @param messages - The conversation context for the workflow
          * @returns The proposed reply if workflow completes, or null if terminated
          */
-        run: (messages: Conversation) => Promise<string | null>
+        run: (messages: Conversation) => Promise<{ reply: string | null; trace: { steps: Record<string, StepTrace>; } }>
 
         /**
          * Rewinds the workflow execution to a specific step.
@@ -193,21 +202,21 @@ export namespace AIEngine {
          * @returns A Promise that resolves to the created Workflow.
          */
         createWorkflow: (...steps: Array<LLMStep | ProgrammaticStep>) => Promise<Workflow>;
-        
+
         /**
          * Creates a step that can be used in a workflow.
          * @param step - The LLM or programmatic step to create.
          * @returns The created step of the same type as the input.
          */
         createStep: <T extends LLMStep | ProgrammaticStep>(step: T) => T;
-        
+
         /**
          * Loads a file from the specified path.
          * @param path - The path to the file to load.
          * @returns The loaded File object.
          */
         loadFile: (path: string) => File;
-        
+
         /**
          * Creates a new conversation instance.
          * @param messages - Optional initial messages for the conversation.
@@ -246,20 +255,20 @@ export namespace AIEngine {
          * @param name - The name to set for the user.
          */
         setUserName(name: string): void
-        
+
         /**
          * Sets the name of the AI agent in the conversation to be used in {@link toString}.
          * @param name - The name to set for the agent.
          */
         setAgentName(name: string): void
-        
+
         /**
          * Converts the conversation to a string representation to be fed to an LLM.
          * @param ignoreDirectives - Whether to ignore directives in the string output.
          * @returns The string representation of the conversation.
          */
         toString: (ignoreDirectives?: boolean) => string
-        
+
         /**
          * Adds a directive message to the conversation.
          * @param message - The directive message to add.
@@ -274,38 +283,38 @@ export namespace AIEngine {
          * ```
          */
         addDirective: (message: string) => void
-        
+
         /**
          * Adds a message from a specified sender to the conversation.
          * @param name - The sender of the message.
          * @param message - The content of the message.
          */
         addMessage: (name: Message['sender'], message: string) => void
-        
+
         /**
          * Sets a custom formatter for directive messages.
          * @param formatter - A function that takes a Message and returns a formatted string.
          */
         setDirectiveFormatter: (formatter: (message: Message) => string) => void
-        
+
         /**
          * Sets a custom formatter for proposed messages.
          * @param formatter - A function that takes a message string and returns a formatted string.
          */
         setProposedMessageFormatter: (formatter: (message: string) => string) => void
-        
+
         /**
          * Sets a proposed reply message.
          * @param message - The proposed reply message.
          */
         setProposedReply: (message: string) => void
-        
+
         /**
          * Gets the current proposed reply message.
          * @returns The proposed reply message, or null if none exists.
          */
         getProposedReply: () => string | null
-        
+
         /**
          * Gets the history of all messages in the conversation.
          * @returns An array of Message objects representing the conversation history.
@@ -447,7 +456,13 @@ export namespace AIEngine {
             let shouldRun = true
             let currentStep = 0
             let beforeEachCallback = async () => Promise.resolve<unknown>(null)
-            const attempts = new Map<LLMStep, number>()
+            const attempts = new Map<LLMStep, number>();
+            const trace = {
+                steps: steps.reduce((acc, step) => {
+                    acc[step.name] = {};
+                    return acc;
+                }, {} as Record<string, StepTrace>)
+            };
             return {
                 terminate: () => {
                     logger.debug('AI Engine: Terminating conversation...')
@@ -465,14 +480,18 @@ export namespace AIEngine {
                             await action('started')
                             logger.debug(`AI Engine: Step: ${step.name}`)
                             if ('prompt' in step) {
-                                await runStep(step, messages)
+                                const stepTrace = await runStep(step, messages)
+                                trace.steps[step.name] = stepTrace;
                             } else {
                                 await runDumbStep(step, messages)
                             }
                             await action('completed')
                         }
                     }
-                    return shouldRun ? messages.getProposedReply() : null
+                    return {
+                        reply: shouldRun ? messages.getProposedReply() : null,
+                        trace
+                    }
                 },
                 rewindTo: (step: LLMStep | ProgrammaticStep) => {
                     const index = steps.indexOf(step)
@@ -490,27 +509,30 @@ export namespace AIEngine {
                 },
             }
 
-            async function runStep(step: LLMStep, messages: Conversation) {
+            async function runStep(step: LLMStep, messages: Conversation): Promise<StepTrace> {
                 if (!apiKey) {
                     throw new Error('OpenAI API key is not set')
                 }
+                const stepTrace: StepTrace = {};
                 try {
+                    stepTrace.receivedContext = step.context;
                     let response: string | null = null
                     let prompt =
                         typeof step.prompt === 'string' ? step.prompt : await step.prompt.content()
+                    stepTrace.receivedPrompt = prompt;
                     logger.debug('AI Engine: context', step.context)
                     logger.debug(
                         'AI Engine: messages',
                         messages.toString(step.ignoreDirectives || false),
                     )
-                    if (step.context) {
-                        nunjucks.configure({
-                            autoescape: true,
-                            trimBlocks: true,
-                            lstripBlocks: true,
-                        })
-                        prompt = nunjucks.renderString(prompt, step.context)
-                    }
+                    nunjucks.configure({
+                        autoescape: true,
+                        trimBlocks: true,
+                        lstripBlocks: true,
+                    })
+                    prompt = nunjucks.renderString(prompt, step.context || {})
+
+                    stepTrace.renderedPrompt = prompt;
 
                     response = await runLLM(
                         apiKey,
@@ -536,10 +558,12 @@ export namespace AIEngine {
                         logger.debug(`AI Engine: replying`)
                         await step.execute(response)
                     }
+                    return stepTrace;
                 } catch (error) {
                     // FIXME: this doesn't terminate the workflow
                     await step.onError((error as Error).message)
                     shouldRun = false
+                    return stepTrace;
                 }
             }
 
