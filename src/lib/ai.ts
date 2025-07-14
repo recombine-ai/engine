@@ -111,7 +111,7 @@ export namespace AIEngine {
     export type StepTrace = {
         renderedPrompt?: string;
         receivedContext?: Record<string, unknown>;
-        passedPrompt?: string;
+        receivedPrompt?: string;
     }
 
     /**
@@ -513,27 +513,25 @@ export namespace AIEngine {
                 if (!apiKey) {
                     throw new Error('OpenAI API key is not set')
                 }
-                let stepTrace: StepTrace = {};
+                const stepTrace: StepTrace = {};
                 try {
                     stepTrace.receivedContext = step.context;
                     let response: string | null = null
                     let prompt =
                         typeof step.prompt === 'string' ? step.prompt : await step.prompt.content()
-                    stepTrace.passedPrompt = prompt;
+                    stepTrace.receivedPrompt = prompt;
                     logger.debug('AI Engine: context', step.context)
                     logger.debug(
                         'AI Engine: messages',
                         messages.toString(step.ignoreDirectives || false),
                     )
-                    // todo: render should run always, regardless of whether context is provided or not
-                    if (step.context) {
-                        nunjucks.configure({
-                            autoescape: true,
-                            trimBlocks: true,
-                            lstripBlocks: true,
-                        })
-                        prompt = nunjucks.renderString(prompt, step.context)
-                    }
+                    nunjucks.configure({
+                        autoescape: true,
+                        trimBlocks: true,
+                        lstripBlocks: true,
+                    })
+                    prompt = nunjucks.renderString(prompt, step.context || {})
+
                     stepTrace.renderedPrompt = prompt;
 
                     response = await runLLM(
