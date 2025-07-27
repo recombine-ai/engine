@@ -1,5 +1,5 @@
 import { Message } from '../ai'
-import { Logger, Scheduler } from '../interfaces'
+import { FS, Logger, Scheduler } from '../interfaces'
 import { SendAction } from './action'
 import { Context } from './context'
 
@@ -32,6 +32,7 @@ export interface TesAgentFactoryProps<CTX extends DefaultContext = DefaultContex
     sendMessage: (message: string) => Promise<void>
     sendAction: SendAction
     ctx: Context<CTX>
+    fs: FS
 }
 
 export interface TestTextAgent {

@@ -5,12 +5,11 @@
 Breaking changes
 
 -   Workspaces removed
+-   `ai.loadFile` removed
 
 Other changes
 
--   FS interface introduced
--   Streaming engine introduced
--
+-   `FS` interface introduced
 
 ### 0.3.2 → 0.4.0 (unstable)
 

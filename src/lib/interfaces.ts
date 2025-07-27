@@ -29,3 +29,16 @@ export interface Scheduler {
      */
     clearAllPendingActions: (phone: string) => Promise<unknown>
 }
+
+export interface PromptFile {
+    content: () => Promise<string>
+}
+
+export interface FS {
+    /**
+     * Loads a file from the specified path.
+     * @param path - The path to the file to load.
+     * @returns The loaded File object.
+     */
+    loadFile(path: string): PromptFile
+}
