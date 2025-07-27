@@ -1,6 +1,18 @@
 # Changelog
 
-### 0.3.2 → 0.4.o (unstable)
+### 0.4.0 → 0.5.0 (unstable)
+
+Breaking changes
+
+-   Workspaces removed
+
+Other changes
+
+-   FS interface introduced
+-   Streaming engine introduced
+-
+
+### 0.3.2 → 0.4.0 (unstable)
 
 Breaking changes:
 
