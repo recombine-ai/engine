@@ -5,6 +5,19 @@ export interface Logger {
     error: (...args: any[]) => void
 }
 
+type Context = Record<string, any>
+
+export interface Tracer {
+    addStep(stepName: string): void
+    startStepTrace(stepName: string): {
+        addRenderedPrompt(prompt: string): void
+        addContext(context: Context): void
+        addReceivedPrompt(prompt: string): void
+        addResponse(response: string): void
+        endTrace(): void
+    }
+}
+
 /**
  * A function that schedules an action to be executed in the future
  * @param delay – a date when the action should be executed use {@link delayFactory} to create a

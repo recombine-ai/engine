@@ -1,5 +1,5 @@
 import { Message } from '../ai'
-import { FS, Logger, Scheduler } from '../interfaces'
+import { FS, Logger, Scheduler, Tracer } from '../interfaces'
 import { SendAction } from './action'
 import { Context } from './context'
 
@@ -26,6 +26,7 @@ import { Context } from './context'
 type DefaultContext = Record<string, any>
 export interface TesAgentFactoryProps<CTX extends DefaultContext = DefaultContext> {
     logger: Logger
+    tracer: Tracer
     scheduler: Scheduler
     basePath: string
     getMessages: () => Message[]
