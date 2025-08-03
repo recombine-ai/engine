@@ -52,10 +52,12 @@ export namespace AIEngine {
         prompt: string | File
 
         /**
-         * Schema for structured LLM output using {@link zod https://zod.dev/}
-         * library.
+         * Defines the expected structure of the LLM's output.
+         * Accepts either a boolean (for plain text or JSON responses) or a ZodSchema, which is automatically
+         * converted to a JSON schema. When provided, the LLM's response is validated and parsed according
+         * to this schema ensuring reliable structured output.
          */
-        schema?: ZodSchema
+        json: boolean | ZodSchema
 
         /** Exclude directives from message history passed to the LLM for this step */
         ignoreDirectives?: boolean
@@ -112,6 +114,7 @@ export namespace AIEngine {
         renderedPrompt?: string;
         receivedContext?: Record<string, unknown>;
         receivedPrompt?: string;
+        stringifiedConversation?: string
     }
 
     /**
@@ -223,6 +226,14 @@ export namespace AIEngine {
          * @returns A new Conversation object.
          */
         createConversation: (messages?: Message[]) => Conversation;
+
+        /**
+         * Renders a prompt string using Nunjucks templating engine.
+         * @param prompt - The prompt string to render.
+         * @param context - Optional context object to use for rendering the prompt.
+         * @returns The rendered prompt string.
+         */
+        renderPrompt: typeof renderPrompt
     }
 
     /**
@@ -282,7 +293,7 @@ export namespace AIEngine {
          * // System: Ask the user for their preferred date and time for the reservation
          * ```
          */
-        addDirective: (message: string) => void
+        addDirective: (message: string, formatter?: (message: Message) => string) => void
 
         /**
          * Adds a message from a specified sender to the conversation.
@@ -295,7 +306,7 @@ export namespace AIEngine {
          * Sets a custom formatter for directive messages.
          * @param formatter - A function that takes a Message and returns a formatted string.
          */
-        setDirectiveFormatter: (formatter: (message: Message) => string) => void
+        setDefaultDirectiveFormatter: (formatter: (message: Message) => string) => void
 
         /**
          * Sets a custom formatter for proposed messages.
@@ -333,6 +344,7 @@ export namespace AIEngine {
         text: string
         /** Optional URL of an image associated with the message */
         imageUrl?: string
+        formatter?: (message: Message) => string
     }
 
     export interface File {
@@ -405,7 +417,7 @@ export namespace AIEngine {
         }
 
         function getConversation(messages: Message[] = []): Conversation {
-            let directivesFormatter = (message: Message) => `${message.sender}: ${message.text}`
+            let defaultDirectivesFormatter = (message: Message) => `${message.sender}: ${message.text}`
             let proposedFormatter = (message: string) => `Proposed reply: ${message}`
             let proposedReply: string | null = null
             const names: Record<Message['sender'], string> = {
@@ -418,7 +430,8 @@ export namespace AIEngine {
                     messages
                         .map((msg) => {
                             if (msg.sender === 'system') {
-                                return ignoreDirectives ? null : directivesFormatter(msg)
+                                logger.debug('formatter', msg.formatter);
+                                return ignoreDirectives ? null : (msg.formatter ? msg.formatter(msg) : defaultDirectivesFormatter(msg))
                             }
                             return `${names[msg.sender]}: ${msg.text}`
                         })
@@ -427,12 +440,12 @@ export namespace AIEngine {
                     (proposedReply ? `\n${proposedFormatter(proposedReply)}` : ''),
                 addMessage: (sender: Message['sender'], text: string) =>
                     messages.push({ sender, text }),
-                addDirective: (message: string) => {
+                addDirective: (message: string, formatter?: (message: Message) => string) => {
                     logger.debug(`AI Engine: add directive: ${message}`)
-                    messages.push({ sender: 'system', text: message })
+                    messages.push({ sender: 'system', text: message, formatter })
                 },
-                setDirectiveFormatter: (formatter: (msg: Message) => string) => {
-                    directivesFormatter = formatter
+                setDefaultDirectiveFormatter: (formatter: (msg: Message) => string) => {
+                    defaultDirectivesFormatter = formatter
                 },
                 setProposedMessageFormatter: (formatter: (msg: string) => string) => {
                     proposedFormatter = formatter
@@ -525,20 +538,16 @@ export namespace AIEngine {
                         'AI Engine: messages',
                         messages.toString(step.ignoreDirectives || false),
                     )
-                    nunjucks.configure({
-                        autoescape: true,
-                        trimBlocks: true,
-                        lstripBlocks: true,
-                    })
-                    prompt = nunjucks.renderString(prompt, step.context || {})
+                    prompt = renderPrompt(prompt, step.context);
 
                     stepTrace.renderedPrompt = prompt;
-
+                    const stringifiedMessages = messages.toString(step.ignoreDirectives || false);
+                    stepTrace.stringifiedConversation = stringifiedMessages;
                     response = await runLLM(
                         apiKey,
                         prompt,
-                        messages.toString(step.ignoreDirectives || false),
-                        step.schema,
+                        stringifiedMessages,
+                        step.json,
                         step.model,
                     )
                     if (!response) {
@@ -601,7 +610,7 @@ export namespace AIEngine {
             apiKey: string,
             systemPrompt: string,
             messages: string,
-            schema?: ZodSchema,
+            json: boolean | ZodSchema,
             model: BasicModel = 'gpt-4o-2024-08-06',
         ) {
             logger.debug('AI Engine: model:', model)
@@ -610,9 +619,10 @@ export namespace AIEngine {
             logger.debug('-------------------------------------------')
             if (apiKey === '__TESTING__') {
                 await sleep(100)
-                return schema
-                    ? JSON.stringify({ message: 'canned response', reasons: [] })
-                    : 'canned response'
+                if (typeof json === 'boolean') {
+                    return json ? JSON.stringify({ message: 'canned response', reasons: [] }) : 'canned response'
+                }
+                return JSON.stringify({ message: 'canned response', reasons: [] })
             }
             const client = new OpenAI({ apiKey })
 
@@ -621,7 +631,10 @@ export namespace AIEngine {
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: messages },
                 ],
-                ...getOpenAiOptions(model, schema),
+                ...getOpenAiOptions(
+                    model,
+                    json
+                ),
             })
 
             if (!response.choices[0].message.content) {
@@ -647,10 +660,11 @@ export namespace AIEngine {
             createStep,
             loadFile,
             createConversation: getConversation,
+            renderPrompt
         }
     }
 
-    function getOpenAiOptions(model: BasicModel, schema?: ZodSchema) {
+    function getOpenAiOptions(model: BasicModel, json: boolean | ZodSchema) {
         const options: Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'> = {
             model,
         }
@@ -663,18 +677,29 @@ export namespace AIEngine {
             options.temperature = 0.1
         }
 
-        if (schema) {
+        if (typeof json !== 'boolean') {
             options.response_format = {
                 type: 'json_schema',
                 json_schema: {
                     name: 'detector_response',
-                    schema: zodToJsonSchema(schema),
+                    schema: zodToJsonSchema(json),
                 },
             }
+        } else if (json) {
+            options.response_format = { type: 'json_object' }
         } else {
             options.response_format = { type: 'text' }
         }
 
         return options
+    }
+
+    function renderPrompt(prompt: string, context?: Record<string, unknown>): string {
+        nunjucks.configure({
+            autoescape: true,
+            trimBlocks: true,
+            lstripBlocks: true,
+        })
+        return nunjucks.renderString(prompt, context || {})
     }
 }
