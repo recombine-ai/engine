@@ -696,7 +696,7 @@ export namespace AIEngine {
 
     function renderPrompt(prompt: string, context?: Record<string, unknown>): string {
         nunjucks.configure({
-            autoescape: true,
+            autoescape: false,
             trimBlocks: true,
             lstripBlocks: true,
         })
