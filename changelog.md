@@ -1,6 +1,19 @@
 # Changelog
 
-### 0.3.2 → 0.4.o (unstable)
+### 0.4.0 → 0.5.0 (unstable)
+
+Breaking changes:
+
+-   `schema` property replaced with `json` which can be boolean,
+-   `setDirectiveFormatter` →
+
+Other changes:
+
+-   `renderPrompt` method added
+-   `addDirective` accepts optional formatter function
+-   `formatter` optional method added to `Message`
+
+### 0.3.2 → 0.4.0 (unstable)
 
 Breaking changes:
 
@@ -22,7 +35,7 @@ Breaking changes:
 Breaking changes:
 
 -   Break down the library into namespace: AIEngine, Scheduler
--   Models → BasicModel
--   Step → LLMStep & ProgrammaticStep
--   makeMessagesList → getConversation
--   Deprecation of shouldExecute (discouraged to use if there's no `maxAttempts` in a step)
+-   `Models` → `BasicModel`
+-   `Step` → `LLMStep` & `ProgrammaticStep`
+-   `makeMessagesList` → `getConversation`
+-   Deprecation of `shouldExecute` (discouraged to use if there's no `maxAttempts` in a step)
