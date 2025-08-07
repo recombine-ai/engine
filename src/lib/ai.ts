@@ -60,7 +60,7 @@ export namespace AIEngine {
         json: boolean | ZodSchema
 
         /** Exclude directives from message history passed to the LLM for this step */
-        ignoreDirectives?: boolean
+        ignoreUtility?: boolean
 
         /**
          * Additional data to be inserted into the prompt. Accessible via Nunjucks variables.
@@ -274,39 +274,23 @@ export namespace AIEngine {
         setAgentName(name: string): void
 
         /**
-         * Converts the conversation to a string representation to be fed to an LLM.
-         * @param ignoreDirectives - Whether to ignore directives in the string output.
-         * @returns The string representation of the conversation.
+         * Sets the default formatter for stringifying messages when toString is called.
+         * @param formatter - A function that takes a message and returns a formatted string.
          */
-        toString: (ignoreDirectives?: boolean) => string
+        setDefaultFormatter: (formatter: (message: Message) => string) => void
 
         /**
-         * Adds a directive message to the conversation.
-         * @param message - The directive message to add.
-         * @example
-         * ```
-         * // Add a directive to guide the LLM response
-         * conversation.addDirective("Ask the user for their preferred date and time for the reservation");
-         * 
-         * // The resulting conversation string might look like:
-         * // User: I'd like to book a table at your restaurant.
-         * // System: Ask the user for their preferred date and time for the reservation
-         * ```
+         * Converts the conversation to a string representation to be fed to an LLM.
+         * @param ignoreUtility - Whether to ignore directives in the string output.
+         * @returns The string representation of the conversation.
          */
-        addDirective: (message: string, formatter?: (message: Message) => string) => void
+        toString: (ignoreUtility?: boolean) => string
 
         /**
          * Adds a message from a specified sender to the conversation.
-         * @param name - The sender of the message.
-         * @param message - The content of the message.
+         * @param message - The message to add to the conversation.
          */
-        addMessage: (name: Message['sender'], message: string) => void
-
-        /**
-         * Sets a custom formatter for directive messages.
-         * @param formatter - A function that takes a Message and returns a formatted string.
-         */
-        setDefaultDirectiveFormatter: (formatter: (message: Message) => string) => void
+        addMessage: (message: Message) => void
 
         /**
          * Sets a custom formatter for proposed messages.
@@ -318,7 +302,7 @@ export namespace AIEngine {
          * Sets a proposed reply message.
          * @param message - The proposed reply message.
          */
-        setProposedReply: (message: string) => void
+        setProposedReply: (message: string, opts: { formatter: (message: Message) => string }) => void
 
         /**
          * Gets the current proposed reply message.
@@ -345,6 +329,7 @@ export namespace AIEngine {
         /** Optional URL of an image associated with the message */
         imageUrl?: string
         formatter?: (message: Message) => string
+        isUtility?: boolean;
     }
 
     export interface File {
@@ -417,7 +402,7 @@ export namespace AIEngine {
         }
 
         function getConversation(messages: Message[] = []): Conversation {
-            let defaultDirectivesFormatter = (message: Message) => `${message.sender}: ${message.text}`
+            let defaultFormatter = (message: Message) => `${message.sender}: ${message.text}`
             let proposedFormatter = (message: string) => `Proposed reply: ${message}`
             let proposedReply: string | null = null
             const names: Record<Message['sender'], string> = {
@@ -426,26 +411,22 @@ export namespace AIEngine {
                 system: 'System',
             }
             return {
-                toString: (ignoreDirectives = false) =>
+                toString: (ignoreUtility = false) =>
                     messages
                         .map((msg) => {
-                            if (msg.sender === 'system') {
-                                logger.debug('formatter', msg.formatter);
-                                return ignoreDirectives ? null : (msg.formatter ? msg.formatter(msg) : defaultDirectivesFormatter(msg))
+                            if (ignoreUtility && msg.isUtility) {
+                                return null;
                             }
-                            return `${names[msg.sender]}: ${msg.text}`
+                            return msg.formatter ? msg.formatter(msg) : defaultFormatter(msg);
                         })
                         .filter((msg) => msg !== null)
                         .join('\n') +
                     (proposedReply ? `\n${proposedFormatter(proposedReply)}` : ''),
-                addMessage: (sender: Message['sender'], text: string) =>
-                    messages.push({ sender, text }),
-                addDirective: (message: string, formatter?: (message: Message) => string) => {
-                    logger.debug(`AI Engine: add directive: ${message}`)
-                    messages.push({ sender: 'system', text: message, formatter })
+                addMessage: (message: Message) => {
+                    return messages.push(message)
                 },
-                setDefaultDirectiveFormatter: (formatter: (msg: Message) => string) => {
-                    defaultDirectivesFormatter = formatter
+                setDefaultFormatter: (formatter: (message: Message) => string) => {
+                    defaultFormatter = formatter
                 },
                 setProposedMessageFormatter: (formatter: (msg: string) => string) => {
                     proposedFormatter = formatter
@@ -458,7 +439,7 @@ export namespace AIEngine {
                 },
                 setAgentName: (name: string) => {
                     names.agent = name
-                },
+                }
             }
         }
 
@@ -536,12 +517,12 @@ export namespace AIEngine {
                     logger.debug('AI Engine: context', step.context)
                     logger.debug(
                         'AI Engine: messages',
-                        messages.toString(step.ignoreDirectives || false),
+                        messages.toString(step.ignoreUtility || false),
                     )
                     prompt = renderPrompt(prompt, step.context);
 
                     stepTrace.renderedPrompt = prompt;
-                    const stringifiedMessages = messages.toString(step.ignoreDirectives || false);
+                    const stringifiedMessages = messages.toString(step.ignoreUtility || false);
                     stepTrace.stringifiedConversation = stringifiedMessages;
                     response = await runLLM(
                         apiKey,
