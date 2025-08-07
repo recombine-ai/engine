@@ -402,14 +402,14 @@ export namespace AIEngine {
         }
 
         function getConversation(messages: Message[] = []): Conversation {
-            let defaultFormatter = (message: Message) => `${message.sender}: ${message.text}`
-            let proposedFormatter = (message: string) => `Proposed reply: ${message}`
-            let proposedReply: string | null = null
             const names: Record<Message['sender'], string> = {
                 agent: 'Agent',
                 user: 'User',
                 system: 'System',
             }
+            let defaultFormatter = (message: Message) => `${names[message.sender]}: ${message.text}`
+            let proposedFormatter = (message: string) => `Proposed reply: ${message}`
+            let proposedReply: string | null = null
             return {
                 toString: (ignoreUtility = false) =>
                     messages
