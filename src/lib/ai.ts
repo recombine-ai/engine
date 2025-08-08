@@ -64,7 +64,7 @@ export namespace AIEngine {
          * @param message - The message to filter.
          * @returns True if the message should be included, false otherwise.
          */
-        messageFilter?: (message: Message) => boolean
+        messageFilter?: (message: ConversationMessage) => boolean
 
         /**
          * Additional data to be inserted into the prompt. Accessible via Nunjucks variables.
@@ -307,7 +307,7 @@ export namespace AIEngine {
          * Sets a proposed reply message.
          * @param message - The proposed reply message.
          */
-        setProposedReply: (message: string, opts?: { formatter?: (message: ConversationMessage) => string }) => void
+        setProposedReply: (message: string) => void
 
         /**
          * Gets the current proposed reply message.
