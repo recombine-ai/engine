@@ -59,8 +59,12 @@ export namespace AIEngine {
          */
         json: boolean | ZodSchema
 
-        /** Exclude directives from message history passed to the LLM for this step */
-        ignoreUtility?: boolean
+        /**
+         * Filters messages based on certain criteria.
+         * @param message - The message to filter.
+         * @returns True if the message should be included, false otherwise.
+         */
+        messageFilter?: (message: Message) => boolean
 
         /**
          * Additional data to be inserted into the prompt. Accessible via Nunjucks variables.
@@ -277,20 +281,21 @@ export namespace AIEngine {
          * Sets the default formatter for stringifying messages when toString is called.
          * @param formatter - A function that takes a message and returns a formatted string.
          */
-        setDefaultFormatter: (formatter: (message: Message) => string) => void
+        setDefaultFormatter: (formatter: (message: ConversationMessage) => string) => void
 
         /**
          * Converts the conversation to a string representation to be fed to an LLM.
-         * @param ignoreUtility - Whether to ignore directives in the string output.
+         * @param filter - A function that filters messages based on certain criteria.
+         * @example
          * @returns The string representation of the conversation.
          */
-        toString: (ignoreUtility?: boolean) => string
+        toString: (filter?: (message: ConversationMessage) => boolean) => string
 
         /**
          * Adds a message from a specified sender to the conversation.
          * @param message - The message to add to the conversation.
          */
-        addMessage: (message: Message) => void
+        addMessage: (message: ConversationMessage) => void
 
         /**
          * Sets a custom formatter for proposed messages.
@@ -302,7 +307,7 @@ export namespace AIEngine {
          * Sets a proposed reply message.
          * @param message - The proposed reply message.
          */
-        setProposedReply: (message: string, opts: { formatter: (message: Message) => string }) => void
+        setProposedReply: (message: string, opts?: { formatter?: (message: ConversationMessage) => string }) => void
 
         /**
          * Gets the current proposed reply message.
@@ -312,6 +317,7 @@ export namespace AIEngine {
 
         /**
          * Gets the history of all messages in the conversation.
+         * Returns {@link Message} rather than {@link ConversationMessage} is returned because none of the {@link ConversationMessage} properties should be accessed outside of the {@link Conversation} context.
          * @returns An array of Message objects representing the conversation history.
          */
         getHistory: () => Message[]
@@ -328,8 +334,11 @@ export namespace AIEngine {
         text: string
         /** Optional URL of an image associated with the message */
         imageUrl?: string
+    }
+
+    interface ConversationMessage extends Message {
         formatter?: (message: Message) => string
-        isUtility?: boolean;
+        tags?: string[]
     }
 
     export interface File {
@@ -401,20 +410,25 @@ export namespace AIEngine {
             return step
         }
 
-        function getConversation(messages: Message[] = []): Conversation {
+
+        function getConversation(initialMessages: Message[] = []): Conversation {
+            const messages: ConversationMessage[] = initialMessages.map((msg) => ({
+                ...msg,
+                tags: [],
+            }));
             const names: Record<Message['sender'], string> = {
                 agent: 'Agent',
                 user: 'User',
                 system: 'System',
             }
-            let defaultFormatter = (message: Message) => `${names[message.sender]}: ${message.text}`
+            let defaultFormatter = (message: ConversationMessage) => `${names[message.sender]}: ${message.text}`
             let proposedFormatter = (message: string) => `Proposed reply: ${message}`
             let proposedReply: string | null = null
             return {
-                toString: (ignoreUtility = false) =>
+                toString: (filter?: (message: ConversationMessage) => boolean) =>
                     messages
                         .map((msg) => {
-                            if (ignoreUtility && msg.isUtility) {
+                            if (filter && !filter(msg)) {
                                 return null;
                             }
                             return msg.formatter ? msg.formatter(msg) : defaultFormatter(msg);
@@ -422,10 +436,10 @@ export namespace AIEngine {
                         .filter((msg) => msg !== null)
                         .join('\n') +
                     (proposedReply ? `\n${proposedFormatter(proposedReply)}` : ''),
-                addMessage: (message: Message) => {
-                    return messages.push(message)
+                addMessage: (message: ConversationMessage) => {
+                    return messages.push({...message, tags: [], formatter: defaultFormatter})
                 },
-                setDefaultFormatter: (formatter: (message: Message) => string) => {
+                setDefaultFormatter: (formatter: (message: ConversationMessage) => string) => {
                     defaultFormatter = formatter
                 },
                 setProposedMessageFormatter: (formatter: (msg: string) => string) => {
@@ -517,12 +531,12 @@ export namespace AIEngine {
                     logger.debug('AI Engine: context', step.context)
                     logger.debug(
                         'AI Engine: messages',
-                        messages.toString(step.ignoreUtility || false),
+                        messages.toString(step.messageFilter),
                     )
                     prompt = renderPrompt(prompt, step.context);
 
                     stepTrace.renderedPrompt = prompt;
-                    const stringifiedMessages = messages.toString(step.ignoreUtility || false);
+                    const stringifiedMessages = messages.toString(step.messageFilter);
                     stepTrace.stringifiedConversation = stringifiedMessages;
                     response = await runLLM(
                         apiKey,
@@ -683,4 +697,15 @@ export namespace AIEngine {
         })
         return nunjucks.renderString(prompt, context || {})
     }
+}
+
+function conversationExample() {
+    const conversation = AIEngine.createAIEngine().createConversation();
+    conversation.setUserName('Client');
+    conversation.setAgentName('Support');
+    conversation.addMessage({ sender: 'user', text: 'I need help with my account', tags: ['internal'] });
+    conversation.addMessage({ sender: 'system', text: 'Ask for account details' });
+    conversation.setProposedReply('Please provide your account number');
+
+    conversation.toString((message) => !!message.tags && !message.tags.includes('internal')); 
 }
