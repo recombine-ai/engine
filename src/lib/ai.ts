@@ -293,7 +293,7 @@ export namespace AIEngine {
          * Adds a message from a specified sender to the conversation.
          * @param message - The message to add to the conversation.
          */
-        addMessage: (message: Message, opts?: {formatter?: (message: Message) => string}) => void
+        addMessage: (message: Message, opts?: { formatter?: (message: Message) => string }) => void
 
         /**
          * Sets a custom formatter for proposed messages.
@@ -427,10 +427,14 @@ export namespace AIEngine {
                         })
                         .filter((msg) => msg !== null)
                         .join('\n') +
-                    (proposedReply ? `\n${proposedFormatter(proposedReply)}` : '');
+                        (proposedReply ? `\n${proposedFormatter(proposedReply)}` : '');
                 },
-                addMessage: (message: Message) => {
-                    return messages.push({...message, isAddedMessage: true, formatter: defaultFormatter})
+                addMessage: (message: Message, opts?: { formatter?: (message: Message) => string }) => {
+                    messages.push({
+                        ...message,
+                        isAddedMessage: true,
+                        formatter: opts?.formatter ?? defaultFormatter,
+                    });
                 },
                 setDefaultFormatter: (formatter: (message: Message) => string) => {
                     defaultFormatter = formatter
