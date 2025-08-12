@@ -403,57 +403,6 @@ export namespace AIEngine {
             return step
         }
 
-
-        function getConversation(initialMessages: Message[] = []): Conversation {
-            const messages = initialMessages.map((msg) => ({
-                ...msg,
-                isAddedMessage: false,
-                formatter: undefined as ((message: Message) => string) | undefined
-            }));
-            const names: Record<Message['sender'], string> = {
-                agent: 'Agent',
-                user: 'User',
-                system: 'System',
-            }
-            let defaultFormatter = (message: Message) => `${names[message.sender]}: ${message.text}`
-            let proposedFormatter = (message: string) => `Proposed reply: ${message}`
-            let proposedReply: string | null = null
-            return {
-                toString: (options?: { ignoreAddedMessages?: boolean }) => {
-                    return messages
-                        .filter((msg) => !options?.ignoreAddedMessages || !msg.isAddedMessage)
-                        .map((msg) => {
-                            return msg.formatter ? msg.formatter(msg) : defaultFormatter(msg);
-                        })
-                        .filter((msg) => msg !== null)
-                        .join('\n') +
-                        (proposedReply ? `\n${proposedFormatter(proposedReply)}` : '');
-                },
-                addMessage: (message: Message, opts?: { formatter?: (message: Message) => string }) => {
-                    messages.push({
-                        ...message,
-                        isAddedMessage: true,
-                        formatter: opts?.formatter ?? defaultFormatter,
-                    });
-                },
-                setDefaultFormatter: (formatter: (message: Message) => string) => {
-                    defaultFormatter = formatter
-                },
-                setProposedMessageFormatter: (formatter: (msg: string) => string) => {
-                    proposedFormatter = formatter
-                },
-                setProposedReply: (message: string) => (proposedReply = message),
-                getProposedReply: () => proposedReply,
-                getHistory: () => messages,
-                setUserName: (name: string) => {
-                    names.user = name
-                },
-                setAgentName: (name: string) => {
-                    names.agent = name
-                }
-            }
-        }
-
         async function createWorkflow(
             ...steps: Array<LLMStep | ProgrammaticStep>
         ): Promise<Workflow> {
@@ -694,40 +643,54 @@ export namespace AIEngine {
         })
         return nunjucks.renderString(prompt, context || {})
     }
-}
 
-/**
- * Example conversation to play with the types and the API
- */
-function conversationExample() {
-    const conversation = AIEngine.createAIEngine().createConversation([{
-        sender: 'user',
-        text: 'Hello, I need help with my order.',
-        imageUrl: 'https://example.com/image.png'
-    }, {
-        sender: 'agent',
-        text: 'Sure, I can help you with that.',
-        imageUrl: 'https://example.com/agent-image.png'
-    }]);
-    conversation.setUserName('Client');
-    conversation.setAgentName('Support');
-    conversation.addMessage({ sender: 'user', text: 'I need help with my account' });
-    conversation.addMessage({ sender: 'system', text: 'Ask for account details' });
-    conversation.setProposedReply('Please provide your account number');
-    /**
-     * Will output:
-     * Client: Hello, I need help with my order.
-     * Agent: Sure, I can help you with that.
-     * Proposed reply: Please provide your account number
-     */
-    conversation.toString({ ignoreAddedMessages: true });
-    /**
-     * Will output:
-     * Client: Hello, I need help with my order.
-     * Agent: Sure, I can help you with that.
-     * Client: I need help with my account
-     * System: Ask for account details
-     * Proposed reply: Please provide your account number
-     */
-    conversation.toString();
+    function getConversation(initialMessages: Message[] = []): Conversation {
+        const messages = initialMessages.map((msg) => ({
+            ...msg,
+            isAddedMessage: false,
+            formatter: undefined as ((message: Message) => string) | undefined
+        }));
+        const names: Record<Message['sender'], string> = {
+            agent: 'Agent',
+            user: 'User',
+            system: 'System',
+        }
+        let defaultFormatter = (message: Message) => `${names[message.sender]}: ${message.text}`
+        let proposedFormatter = (message: string) => `Proposed reply: ${message}`
+        let proposedReply: string | null = null
+        return {
+            toString: (options?: { ignoreAddedMessages?: boolean }) => {
+                return messages
+                    .filter((msg) => !options?.ignoreAddedMessages || !msg.isAddedMessage)
+                    .map((msg) => {
+                        return msg.formatter ? msg.formatter(msg) : defaultFormatter(msg);
+                    })
+                    .filter((msg) => msg !== null)
+                    .join('\n') +
+                    (proposedReply ? `\n${proposedFormatter(proposedReply)}` : '');
+            },
+            addMessage: (message: Message, opts?: { formatter?: (message: Message) => string }) => {
+                messages.push({
+                    ...message,
+                    isAddedMessage: true,
+                    formatter: opts?.formatter ?? defaultFormatter,
+                });
+            },
+            setDefaultFormatter: (formatter: (message: Message) => string) => {
+                defaultFormatter = formatter
+            },
+            setProposedMessageFormatter: (formatter: (msg: string) => string) => {
+                proposedFormatter = formatter
+            },
+            setProposedReply: (message: string) => (proposedReply = message),
+            getProposedReply: () => proposedReply,
+            getHistory: () => messages,
+            setUserName: (name: string) => {
+                names.user = name
+            },
+            setAgentName: (name: string) => {
+                names.agent = name
+            }
+        }
+    }
 }
