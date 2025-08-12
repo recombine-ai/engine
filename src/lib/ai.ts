@@ -644,7 +644,7 @@ export namespace AIEngine {
         return nunjucks.renderString(prompt, context || {})
     }
 
-    function getConversation(initialMessages: Message[] = []): Conversation {
+    export function getConversation(initialMessages: Message[] = []): Conversation {
         const messages = initialMessages.map((msg) => ({
             ...msg,
             isAddedMessage: false,
