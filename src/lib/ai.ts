@@ -60,11 +60,9 @@ export namespace AIEngine {
         json: boolean | ZodSchema
 
         /**
-         * Filters messages based on certain criteria.
-         * @param message - The message to filter.
-         * @returns True if the message should be included, false otherwise.
+         * Do not put messages that were added via {@link Conversation.addMessage} into the prompt.
          */
-        messageFilter?: (message: ConversationMessage) => boolean
+        ignoreAddedMessages?: boolean
 
         /**
          * Additional data to be inserted into the prompt. Accessible via Nunjucks variables.
@@ -281,7 +279,7 @@ export namespace AIEngine {
          * Sets the default formatter for stringifying messages when toString is called.
          * @param formatter - A function that takes a message and returns a formatted string.
          */
-        setDefaultFormatter: (formatter: (message: ConversationMessage) => string) => void
+        setDefaultFormatter: (formatter: (message: Message) => string) => void
 
         /**
          * Converts the conversation to a string representation to be fed to an LLM.
@@ -289,13 +287,13 @@ export namespace AIEngine {
          * @example
          * @returns The string representation of the conversation.
          */
-        toString: (filter?: (message: ConversationMessage) => boolean) => string
+        toString: (options?: { ignoreAddedMessages?: boolean }) => string
 
         /**
          * Adds a message from a specified sender to the conversation.
          * @param message - The message to add to the conversation.
          */
-        addMessage: (message: ConversationMessage) => void
+        addMessage: (message: Message, opts?: {formatter?: (message: Message) => string}) => void
 
         /**
          * Sets a custom formatter for proposed messages.
@@ -317,7 +315,7 @@ export namespace AIEngine {
 
         /**
          * Gets the history of all messages in the conversation.
-         * Returns {@link Message} rather than {@link ConversationMessage} is returned because none of the {@link ConversationMessage} properties should be accessed outside of the {@link Conversation} context.
+         * Returns {@link Message} rather than {@link ConversationMessage} because none of the {@link ConversationMessage} properties should be accessed outside of the {@link Conversation} context.
          * @returns An array of Message objects representing the conversation history.
          */
         getHistory: () => Message[]
@@ -334,11 +332,6 @@ export namespace AIEngine {
         text: string
         /** Optional URL of an image associated with the message */
         imageUrl?: string
-    }
-
-    interface ConversationMessage extends Message {
-        formatter?: (message: Message) => string
-        tags?: string[]
     }
 
     export interface File {
@@ -412,34 +405,34 @@ export namespace AIEngine {
 
 
         function getConversation(initialMessages: Message[] = []): Conversation {
-            const messages: ConversationMessage[] = initialMessages.map((msg) => ({
+            const messages = initialMessages.map((msg) => ({
                 ...msg,
-                tags: [],
+                isAddedMessage: false,
+                formatter: undefined as ((message: Message) => string) | undefined
             }));
             const names: Record<Message['sender'], string> = {
                 agent: 'Agent',
                 user: 'User',
                 system: 'System',
             }
-            let defaultFormatter = (message: ConversationMessage) => `${names[message.sender]}: ${message.text}`
+            let defaultFormatter = (message: Message) => `${names[message.sender]}: ${message.text}`
             let proposedFormatter = (message: string) => `Proposed reply: ${message}`
             let proposedReply: string | null = null
             return {
-                toString: (filter?: (message: ConversationMessage) => boolean) =>
-                    messages
+                toString: (options?: { ignoreAddedMessages?: boolean }) => {
+                    return messages
+                        .filter((msg) => !options?.ignoreAddedMessages || !msg.isAddedMessage)
                         .map((msg) => {
-                            if (filter && !filter(msg)) {
-                                return null;
-                            }
                             return msg.formatter ? msg.formatter(msg) : defaultFormatter(msg);
                         })
                         .filter((msg) => msg !== null)
                         .join('\n') +
-                    (proposedReply ? `\n${proposedFormatter(proposedReply)}` : ''),
-                addMessage: (message: ConversationMessage) => {
-                    return messages.push({...message, tags: [], formatter: defaultFormatter})
+                    (proposedReply ? `\n${proposedFormatter(proposedReply)}` : '');
                 },
-                setDefaultFormatter: (formatter: (message: ConversationMessage) => string) => {
+                addMessage: (message: Message) => {
+                    return messages.push({...message, isAddedMessage: true, formatter: defaultFormatter})
+                },
+                setDefaultFormatter: (formatter: (message: Message) => string) => {
                     defaultFormatter = formatter
                 },
                 setProposedMessageFormatter: (formatter: (msg: string) => string) => {
@@ -531,12 +524,12 @@ export namespace AIEngine {
                     logger.debug('AI Engine: context', step.context)
                     logger.debug(
                         'AI Engine: messages',
-                        messages.toString(step.messageFilter),
+                        messages.toString({ ignoreAddedMessages: step.ignoreAddedMessages }),
                     )
                     prompt = renderPrompt(prompt, step.context);
 
                     stepTrace.renderedPrompt = prompt;
-                    const stringifiedMessages = messages.toString(step.messageFilter);
+                    const stringifiedMessages = messages.toString({ ignoreAddedMessages: step.ignoreAddedMessages });
                     stepTrace.stringifiedConversation = stringifiedMessages;
                     response = await runLLM(
                         apiKey,
@@ -699,13 +692,38 @@ export namespace AIEngine {
     }
 }
 
+/**
+ * Example conversation to play with the types and the API
+ */
 function conversationExample() {
-    const conversation = AIEngine.createAIEngine().createConversation();
+    const conversation = AIEngine.createAIEngine().createConversation([{
+        sender: 'user',
+        text: 'Hello, I need help with my order.',
+        imageUrl: 'https://example.com/image.png'
+    }, {
+        sender: 'agent',
+        text: 'Sure, I can help you with that.',
+        imageUrl: 'https://example.com/agent-image.png'
+    }]);
     conversation.setUserName('Client');
     conversation.setAgentName('Support');
-    conversation.addMessage({ sender: 'user', text: 'I need help with my account', tags: ['internal'] });
+    conversation.addMessage({ sender: 'user', text: 'I need help with my account' });
     conversation.addMessage({ sender: 'system', text: 'Ask for account details' });
     conversation.setProposedReply('Please provide your account number');
-
-    conversation.toString((message) => !!message.tags && !message.tags.includes('internal')); 
+    /**
+     * Will output:
+     * Client: Hello, I need help with my order.
+     * Agent: Sure, I can help you with that.
+     * Proposed reply: Please provide your account number
+     */
+    conversation.toString({ ignoreAddedMessages: true });
+    /**
+     * Will output:
+     * Client: Hello, I need help with my order.
+     * Agent: Sure, I can help you with that.
+     * Client: I need help with my account
+     * System: Ask for account details
+     * Proposed reply: Please provide your account number
+     */
+    conversation.toString();
 }
