@@ -600,7 +600,7 @@ export namespace AIEngine {
             createWorkflow: createWorkflow,
             createStep,
             loadFile,
-            createConversation: getConversation,
+            createConversation,
             renderPrompt
         }
     }
@@ -644,7 +644,7 @@ export namespace AIEngine {
         return nunjucks.renderString(prompt, context || {})
     }
 
-    export function getConversation(initialMessages: Message[] = []): Conversation {
+    export function createConversation(initialMessages: Message[] = []): Conversation {
         const messages = initialMessages.map((msg) => ({
             ...msg,
             isAddedMessage: false,
