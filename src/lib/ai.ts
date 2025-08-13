@@ -59,8 +59,10 @@ export namespace AIEngine {
          */
         json: boolean | ZodSchema
 
-        /** Exclude directives from message history passed to the LLM for this step */
-        ignoreDirectives?: boolean
+        /**
+         * Do not put messages that were added via {@link Conversation.addMessage} into the prompt.
+         */
+        ignoreAddedMessages?: boolean
 
         /**
          * Additional data to be inserted into the prompt. Accessible via Nunjucks variables.
@@ -274,39 +276,24 @@ export namespace AIEngine {
         setAgentName(name: string): void
 
         /**
-         * Converts the conversation to a string representation to be fed to an LLM.
-         * @param ignoreDirectives - Whether to ignore directives in the string output.
-         * @returns The string representation of the conversation.
+         * Sets the default formatter for stringifying messages when toString is called.
+         * @param formatter - A function that takes a message and returns a formatted string.
          */
-        toString: (ignoreDirectives?: boolean) => string
+        setDefaultFormatter: (formatter: (message: Message) => string) => void
 
         /**
-         * Adds a directive message to the conversation.
-         * @param message - The directive message to add.
+         * Converts the conversation to a string representation to be fed to an LLM.
+         * @param filter - A function that filters messages based on certain criteria.
          * @example
-         * ```
-         * // Add a directive to guide the LLM response
-         * conversation.addDirective("Ask the user for their preferred date and time for the reservation");
-         * 
-         * // The resulting conversation string might look like:
-         * // User: I'd like to book a table at your restaurant.
-         * // System: Ask the user for their preferred date and time for the reservation
-         * ```
+         * @returns The string representation of the conversation.
          */
-        addDirective: (message: string, formatter?: (message: Message) => string) => void
+        toString: (options?: { ignoreAddedMessages?: boolean }) => string
 
         /**
          * Adds a message from a specified sender to the conversation.
-         * @param name - The sender of the message.
-         * @param message - The content of the message.
+         * @param message - The message to add to the conversation.
          */
-        addMessage: (name: Message['sender'], message: string) => void
-
-        /**
-         * Sets a custom formatter for directive messages.
-         * @param formatter - A function that takes a Message and returns a formatted string.
-         */
-        setDefaultDirectiveFormatter: (formatter: (message: Message) => string) => void
+        addMessage: (message: Message, opts?: { formatter?: (message: Message) => string }) => void
 
         /**
          * Sets a custom formatter for proposed messages.
@@ -328,6 +315,7 @@ export namespace AIEngine {
 
         /**
          * Gets the history of all messages in the conversation.
+         * Returns {@link Message} rather than {@link ConversationMessage} because none of the {@link ConversationMessage} properties should be accessed outside of the {@link Conversation} context.
          * @returns An array of Message objects representing the conversation history.
          */
         getHistory: () => Message[]
@@ -344,7 +332,6 @@ export namespace AIEngine {
         text: string
         /** Optional URL of an image associated with the message */
         imageUrl?: string
-        formatter?: (message: Message) => string
     }
 
     export interface File {
@@ -414,52 +401,6 @@ export namespace AIEngine {
         }
         function createStep<T extends LLMStep | ProgrammaticStep>(step: T): T {
             return step
-        }
-
-        function getConversation(messages: Message[] = []): Conversation {
-            let defaultDirectivesFormatter = (message: Message) => `${message.sender}: ${message.text}`
-            let proposedFormatter = (message: string) => `Proposed reply: ${message}`
-            let proposedReply: string | null = null
-            const names: Record<Message['sender'], string> = {
-                agent: 'Agent',
-                user: 'User',
-                system: 'System',
-            }
-            return {
-                toString: (ignoreDirectives = false) =>
-                    messages
-                        .map((msg) => {
-                            if (msg.sender === 'system') {
-                                logger.debug('formatter', msg.formatter);
-                                return ignoreDirectives ? null : (msg.formatter ? msg.formatter(msg) : defaultDirectivesFormatter(msg))
-                            }
-                            return `${names[msg.sender]}: ${msg.text}`
-                        })
-                        .filter((msg) => msg !== null)
-                        .join('\n') +
-                    (proposedReply ? `\n${proposedFormatter(proposedReply)}` : ''),
-                addMessage: (sender: Message['sender'], text: string) =>
-                    messages.push({ sender, text }),
-                addDirective: (message: string, formatter?: (message: Message) => string) => {
-                    logger.debug(`AI Engine: add directive: ${message}`)
-                    messages.push({ sender: 'system', text: message, formatter })
-                },
-                setDefaultDirectiveFormatter: (formatter: (msg: Message) => string) => {
-                    defaultDirectivesFormatter = formatter
-                },
-                setProposedMessageFormatter: (formatter: (msg: string) => string) => {
-                    proposedFormatter = formatter
-                },
-                setProposedReply: (message: string) => (proposedReply = message),
-                getProposedReply: () => proposedReply,
-                getHistory: () => messages,
-                setUserName: (name: string) => {
-                    names.user = name
-                },
-                setAgentName: (name: string) => {
-                    names.agent = name
-                },
-            }
         }
 
         async function createWorkflow(
@@ -536,12 +477,12 @@ export namespace AIEngine {
                     logger.debug('AI Engine: context', step.context)
                     logger.debug(
                         'AI Engine: messages',
-                        messages.toString(step.ignoreDirectives || false),
+                        messages.toString({ ignoreAddedMessages: step.ignoreAddedMessages }),
                     )
                     prompt = renderPrompt(prompt, step.context);
 
                     stepTrace.renderedPrompt = prompt;
-                    const stringifiedMessages = messages.toString(step.ignoreDirectives || false);
+                    const stringifiedMessages = messages.toString({ ignoreAddedMessages: step.ignoreAddedMessages });
                     stepTrace.stringifiedConversation = stringifiedMessages;
                     response = await runLLM(
                         apiKey,
@@ -659,7 +600,7 @@ export namespace AIEngine {
             createWorkflow: createWorkflow,
             createStep,
             loadFile,
-            createConversation: getConversation,
+            createConversation,
             renderPrompt
         }
     }
@@ -701,5 +642,55 @@ export namespace AIEngine {
             lstripBlocks: true,
         })
         return nunjucks.renderString(prompt, context || {})
+    }
+
+    export function createConversation(initialMessages: Message[] = []): Conversation {
+        const messages = initialMessages.map((msg) => ({
+            ...msg,
+            isAddedMessage: false,
+            formatter: undefined as ((message: Message) => string) | undefined
+        }));
+        const names: Record<Message['sender'], string> = {
+            agent: 'Agent',
+            user: 'User',
+            system: 'System',
+        }
+        let defaultFormatter = (message: Message) => `${names[message.sender]}: ${message.text}`
+        let proposedFormatter = (message: string) => `Proposed reply: ${message}`
+        let proposedReply: string | null = null
+        return {
+            toString: (options?: { ignoreAddedMessages?: boolean }) => {
+                return messages
+                    .filter((msg) => !options?.ignoreAddedMessages || !msg.isAddedMessage)
+                    .map((msg) => {
+                        return msg.formatter ? msg.formatter(msg) : defaultFormatter(msg);
+                    })
+                    .filter((msg) => msg !== null)
+                    .join('\n') +
+                    (proposedReply ? `\n${proposedFormatter(proposedReply)}` : '');
+            },
+            addMessage: (message: Message, opts?: { formatter?: (message: Message) => string }) => {
+                messages.push({
+                    ...message,
+                    isAddedMessage: true,
+                    formatter: opts?.formatter ?? defaultFormatter,
+                });
+            },
+            setDefaultFormatter: (formatter: (message: Message) => string) => {
+                defaultFormatter = formatter
+            },
+            setProposedMessageFormatter: (formatter: (msg: string) => string) => {
+                proposedFormatter = formatter
+            },
+            setProposedReply: (message: string) => (proposedReply = message),
+            getProposedReply: () => proposedReply,
+            getHistory: () => messages,
+            setUserName: (name: string) => {
+                names.user = name
+            },
+            setAgentName: (name: string) => {
+                names.agent = name
+            }
+        }
     }
 }
