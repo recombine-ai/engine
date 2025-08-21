@@ -29,7 +29,7 @@ export namespace Bosun{
         scheduler: Scheduler.Scheduler
         ai: AIEngine.AIEngine
         getMessages: () => AIEngine.Message[]
-        sendMessage: (message: string) => Promise<void>
+        sendMessage: (message: string | AIEngine.Message) => Promise<void>
         sendAction: SendAction
         ctx: Context<CTX>
     }
