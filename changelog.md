@@ -1,5 +1,16 @@
 # Changelog
 
+### 0.5.0 → 0.6.0 (unstable)
+
+Breaking changes:
+
+-   addDirective is removed. Use addMessage with role: 'system' instead.
+-   ignoreDirectives → ignoreAddedMessages
+
+Other changes:
+
+-   AIEngine.sendMessage now accepts "Message" rather than a string
+
 ### 0.4.0 → 0.5.0 (unstable)
 
 Breaking changes:
