@@ -8,6 +8,8 @@ import { Logger } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
 import { sleep } from 'openai/core'
 import { PromptFile } from './prompt-fs'
+import { Tracer } from './bosun'
+import { createConsoleTracer, stdPrompt } from './bosun/tracer'
 
 /**
  * Represents a basic model name for LLMs.
@@ -19,26 +21,26 @@ export type BasicModel =
     | 'o1-2024-12-17'
     | (string & {}) // prevents compiler from simplifying the type to just `string`
 
-export interface ProgrammaticStep {
+export interface ProgrammaticStep<CTX> {
     /** Step name for debugging */
     name: string
 
     /** Determines if the step should be run or not */
-    runIf?: (messages: Conversation) => boolean | Promise<boolean>
+    runIf?: (messages: Conversation, ctx: CTX) => boolean | Promise<boolean>
 
     /** Content of the step */
-    execute: () => Promise<unknown>
+    execute: (messages: Conversation, ctx: CTX) => Promise<unknown>
 
     /** Error handler called if an error occurred during in `execute` function */
-    onError: (error: string) => Promise<unknown>
+    onError?: (error: string, ctx: CTX) => Promise<unknown>
 }
 
-export interface LLMStep {
+export interface LLMStep<CTX> {
     /** Step name for debugging */
     name: string
 
     /** Determines if the step should be run or not */
-    runIf?: (messages: Conversation) => boolean | Promise<boolean>
+    runIf?: (messages: Conversation, ctx: CTX) => boolean | Promise<boolean>
 
     /** LLM to use. Defaults to gpt-4o */
     model?: BasicModel
@@ -50,28 +52,28 @@ export interface LLMStep {
     prompt: string | PromptFile
 
     /**
-     * Defines the expected structure of the LLM's output.
-     * Accepts either a boolean (for plain text or JSON responses) or a ZodSchema, which is automatically
-     * converted to a JSON schema. When provided, the LLM's response is validated and parsed according
-     * to this schema ensuring reliable structured output.
-     */
-    json: boolean | ZodSchema
-
-    /**
      * Do not put messages that were added via {@link Conversation.addMessage} into the prompt.
      */
     ignoreAddedMessages?: boolean
 
     /**
-     * Additional data to be inserted into the prompt. Accessible via Nunjucks variables.
-     * @example
-     * ```
-     * prompt: "Hello {{ name }}, your score is {{ score }}"
-     * context: { name: "John", score: 42 }
-     * ```
+     * When provided, throws an error if the step is invoked more times than `maxAttempts`.
+     * Number of attempts taken is reset when `shouldExecute` returns `false`. Useful to limit
+     * rewinds by reviewers. NOTE that it doesn't work on steps without `shouldExecute` method.
      */
-    context?: Record<string, unknown>
+    maxAttempts?: number
 
+    /** Error handler called if an error occurred during LLM API call or in `execute` function */
+    onError?: (error: string, ctx: CTX) => Promise<unknown>
+}
+
+export interface JsonLLMStep<CTX, SCHEMA> extends LLMStep<CTX> {
+    /**
+     * Defines the expected structure of the LLM's output. Accepts ZodSchema. When provided, the
+     * LLM's response is validated and parsed according to this schema ensuring reliable structured
+     * output.
+     */
+    schema: ZodSchema<SCHEMA>
     /**
      * Function to execute with the LLM's response. Use {@link setProposedReply} to use the LLM's output as the proposed reply.
      * Or use combination of {@link getProposedReply} and {@link setProposedReply} to substitute parts of the string.
@@ -87,24 +89,40 @@ export interface LLMStep {
      * }
      * ```
      */
-    execute: (reply: string) => Promise<unknown>
+    execute: (reply: SCHEMA, conversation: Conversation, ctx: CTX) => Promise<unknown>
 
     /**
      * Check a condition, whether the `execute` function should run or not
      * @deprecated use `runIf` to check if the step should be run, use if in `execute` to check
      * if it should be executed
      **/
-    shouldExecute?: (reply: string) => boolean | Promise<boolean>
+    shouldExecute?: (reply: SCHEMA, ctx: CTX) => boolean | Promise<boolean>
+}
+
+export interface StringLLMStep<CTX> extends LLMStep<CTX> {
+    /**
+     * Function to execute with the LLM's response. Use {@link setProposedReply} to use the LLM's output as the proposed reply.
+     * Or use combination of {@link getProposedReply} and {@link setProposedReply} to substitute parts of the string.
+     * @example
+     * ```
+     * // Use LLM output directly as reply
+     * execute: (reply) => messages.setProposedReply(reply)
+     *
+     * // Substitute tokens in LLM output
+     * execute: (reply) => {
+     *   const withLink = reply.replace('<PAYMENT_LINK>', 'https://payment.example.com/123')
+     *   messages.setProposedReply(withLink)
+     * }
+     * ```
+     */
+    execute: (reply: string, conversation: Conversation, ctx: CTX) => Promise<unknown>
 
     /**
-     * When provided, throws an error if the step is invoked more times than `maxAttempts`.
-     * Number of attempts taken is reset when `shouldExecute` returns `false`. Useful to limit
-     * rewinds by reviewers. NOTE that it doesn't work on steps without `shouldExecute` method.
-     */
-    maxAttempts?: number
-
-    /** Error handler called if an error occurred during LLM API call or in `execute` function */
-    onError: (error: string) => Promise<unknown>
+     * Check a condition, whether the `execute` function should run or not
+     * @deprecated use `runIf` to check if the step should be run, use if in `execute` to check
+     * if it should be executed
+     **/
+    shouldExecute?: (reply: string, ctx: CTX) => boolean | Promise<boolean>
 }
 
 /**
@@ -120,7 +138,7 @@ export type StepTrace = {
 /**
  * An AI workflow composed of steps.
  */
-export interface Workflow {
+export interface Workflow<CTX> {
     /**
      * Terminates the workflow, preventing further steps from being executed.
      */
@@ -134,19 +152,28 @@ export interface Workflow {
      */
     run: (
         messages: Conversation,
+        ctx?: CTX,
     ) => Promise<{ reply: string | null; trace: { steps: Record<string, StepTrace> } }>
 
     /**
      * Rewinds the workflow execution to a specific step.
      * @param step - The step to rewind to
      */
-    rewindTo: (step: LLMStep | ProgrammaticStep) => void
+    rewindTo: (step: LLMStep<CTX> | ProgrammaticStep<CTX>) => void
 
     /**
      * Registers a callback to be executed before each step.
      * @param callback - Async function to execute before each step
      */
     beforeEach: (callback: () => Promise<unknown>) => void
+
+    addStep<SCHEMA>(step: JsonLLMStep<CTX, SCHEMA>): void
+    addStep(step: StringLLMStep<CTX>): void
+    addStep(step: ProgrammaticStep<CTX>): void
+}
+
+export interface WorkflowConfig<CTX> {
+    onError: (error: string, ctx: CTX) => Promise<unknown>
 }
 
 /**
@@ -203,17 +230,10 @@ export interface Workflow {
 export interface AIEngine {
     /**
      * Creates a workflow from a sequence of steps.
-     * @param steps - An array of LLM or programmatic steps to be executed in order.
+     * @param config - common parameters for a workflow
      * @returns A Promise that resolves to the created Workflow.
      */
-    createWorkflow: (...steps: Array<LLMStep | ProgrammaticStep>) => Promise<Workflow>
-
-    /**
-     * Creates a step that can be used in a workflow.
-     * @param step - The LLM or programmatic step to create.
-     * @returns The created step of the same type as the input.
-     */
-    createStep: <T extends LLMStep | ProgrammaticStep>(step: T) => T
+    createWorkflow: <CTX>(config: WorkflowConfig<CTX>) => Workflow<CTX>
 
     /**
      * Creates a new conversation instance.
@@ -345,6 +365,8 @@ export interface EngineConfig {
      * Optional function for sending actions.
      */
     sendAction?: SendAction
+
+    tracer?: Tracer
 }
 
 /**
@@ -375,6 +397,8 @@ export interface EngineConfig {
  */
 export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     const logger = cfg.logger || globalThis.console
+    const tracer = cfg.tracer || createConsoleTracer(logger)
+    let apiKey: string | null = null
     const tokenStorage = cfg.tokenStorage || {
         async getToken() {
             if (process.env.OPENAI_API_KEY) {
@@ -383,16 +407,13 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
             throw new Error('OpenAI API key is not set')
         },
     }
-    function createStep<T extends LLMStep | ProgrammaticStep>(step: T): T {
-        return step
-    }
 
-    async function createWorkflow(...steps: Array<LLMStep | ProgrammaticStep>): Promise<Workflow> {
-        const apiKey = await tokenStorage.getToken()
+    function createWorkflow<CTX>({ onError }: WorkflowConfig<CTX>): Workflow<CTX> {
         let shouldRun = true
         let currentStep = 0
         let beforeEachCallback = async () => Promise.resolve<unknown>(null)
-        const attempts = new Map<LLMStep, number>()
+        const attempts = new Map<LLMStep<any>, number>()
+        const steps: Array<StringLLMStep<CTX> | JsonLLMStep<CTX, any> | ProgrammaticStep<CTX>> = []
         const trace = {
             steps: steps.reduce(
                 (acc, step) => {
@@ -407,22 +428,22 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 logger.debug('AI Engine: Terminating conversation...')
                 shouldRun = false
             },
-            run: async (messages: Conversation) => {
+            run: async (messages: Conversation, ctx: any) => {
                 for (; currentStep < steps.length; currentStep++) {
                     await beforeEachCallback()
                     const step = steps[currentStep]
                     if (!shouldRun) {
                         break
                     }
-                    if (!step.runIf || (await step.runIf(messages))) {
+                    if (!step.runIf || (await step.runIf(messages, ctx))) {
                         const action = makeAction(cfg.sendAction, 'AI', step.name)
                         await action('started')
                         logger.debug(`AI Engine: Step: ${step.name}`)
                         if ('prompt' in step) {
-                            const stepTrace = await runStep(step, messages)
+                            const stepTrace = await runStep(step, messages, ctx, onError)
                             trace.steps[step.name] = stepTrace
                         } else {
-                            await runDumbStep(step, messages)
+                            await runProgrammaticStep(step, messages, ctx)
                         }
                         await action('completed')
                     }
@@ -432,8 +453,8 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                     trace,
                 }
             },
-            rewindTo: (step: LLMStep | ProgrammaticStep) => {
-                const index = steps.indexOf(step)
+            rewindTo: (step: LLMStep<CTX> | ProgrammaticStep<CTX>) => {
+                const index = steps.indexOf(step as any)
                 if (index === -1) {
                     throw new Error(`Step ${step.name} not found`)
                 }
@@ -446,73 +467,117 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
             beforeEach(callback: () => Promise<unknown>) {
                 beforeEachCallback = callback
             },
+            addStep(step: StringLLMStep<CTX> | JsonLLMStep<CTX, any> | ProgrammaticStep<CTX>) {
+                if ('prompt' in step) {
+                    tracer.addStep({
+                        name: step.name,
+                        prompt: stdPrompt(step.prompt),
+                        type: 'text',
+                        schema: 'schema' in step ? step.schema : undefined,
+                    })
+                }
+                steps.push(step)
+            },
         }
 
-        async function runStep(step: LLMStep, messages: Conversation): Promise<StepTrace> {
+        async function runStep(
+            step: StringLLMStep<CTX> | JsonLLMStep<CTX, any>,
+            conversation: Conversation,
+            ctx: any,
+            onError: WorkflowConfig<CTX>['onError'],
+        ): Promise<StepTrace> {
             if (!apiKey) {
-                throw new Error('OpenAI API key is not set')
+                apiKey = await tokenStorage.getToken()
+            }
+            if (!apiKey) {
+                throw new Error('LLM API key is not provided')
             }
             const stepTrace: StepTrace = {}
             try {
-                stepTrace.receivedContext = step.context
+                stepTrace.receivedContext = ctx
                 let response: string | null = null
                 let prompt =
                     typeof step.prompt === 'string' ? step.prompt : await step.prompt.content()
                 stepTrace.receivedPrompt = prompt
-                logger.debug('AI Engine: context', step.context)
+                logger.debug('AI Engine: context', ctx)
                 logger.debug(
                     'AI Engine: messages',
-                    messages.toString({ ignoreAddedMessages: step.ignoreAddedMessages }),
+                    conversation.toString({ ignoreAddedMessages: step.ignoreAddedMessages }),
                 )
-                prompt = renderPrompt(prompt, step.context)
+                prompt = renderPrompt(prompt, ctx)
 
                 stepTrace.renderedPrompt = prompt
-                const stringifiedMessages = messages.toString({
+                const stringifiedMessages = conversation.toString({
                     ignoreAddedMessages: step.ignoreAddedMessages,
                 })
                 stepTrace.stringifiedConversation = stringifiedMessages
-                response = await runLLM(apiKey, prompt, stringifiedMessages, step.json, step.model)
+                if ('schema' in step) {
+                    response = await runLLM(
+                        apiKey,
+                        prompt,
+                        stringifiedMessages,
+                        step.schema,
+                        step.model,
+                    )
+                    response = step.schema.parse(JSON.parse(response))
+                } else {
+                    response = await runLLM(
+                        apiKey,
+                        prompt,
+                        stringifiedMessages,
+                        undefined,
+                        step.model,
+                    )
+                }
                 if (!response) {
                     throw new Error('No response from OpenAI')
                 }
                 logger.debug(`AI Engine: response: ${response}`)
                 if (typeof step.shouldExecute === 'function') {
-                    if (await step.shouldExecute(response)) {
+                    if (await step.shouldExecute(response, ctx)) {
                         logger.debug(`AI Engine: executing`)
                         checkAttempts(step)
-                        await step.execute(response)
+                        await step.execute(response, conversation, ctx)
                     } else {
                         resetAttempts(step)
                         logger.debug(`AI Engine: skipping`)
                     }
                 } else {
                     logger.debug(`AI Engine: replying`)
-                    await step.execute(response)
+                    await step.execute(response, conversation, ctx)
                 }
                 return stepTrace
             } catch (error) {
+                await (step.onError
+                    ? step.onError((error as Error).message, ctx)
+                    : onError((error as Error).message, ctx))
                 // FIXME: this doesn't terminate the workflow
-                await step.onError((error as Error).message)
                 shouldRun = false
                 return stepTrace
             }
         }
 
-        async function runDumbStep(step: ProgrammaticStep, messages: Conversation) {
+        async function runProgrammaticStep(
+            step: ProgrammaticStep<CTX>,
+            messages: Conversation,
+            ctx: CTX,
+        ) {
             try {
-                if (!step.runIf || (await step.runIf(messages))) {
-                    await step.execute()
+                if (!step.runIf || (await step.runIf(messages, ctx))) {
+                    await step.execute(messages, ctx)
                 }
             } catch (error) {
                 console.error(
                     `AI Engine: error in dumb step ${step.name}: ${(error as Error).message}`,
                 )
-                await step.onError((error as Error).message)
+                await (step.onError
+                    ? step.onError((error as Error).message, ctx)
+                    : onError((error as Error).message, ctx))
                 shouldRun = false
             }
         }
 
-        function checkAttempts(step: LLMStep) {
+        function checkAttempts(step: LLMStep<any>) {
             if (step.maxAttempts) {
                 if (!attempts.has(step)) {
                     attempts.set(step, 0)
@@ -523,7 +588,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 }
             }
         }
-        function resetAttempts(step: LLMStep) {
+        function resetAttempts(step: LLMStep<any>) {
             attempts.set(step, 0)
         }
     }
@@ -532,7 +597,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         apiKey: string,
         systemPrompt: string,
         messages: string,
-        json: boolean | ZodSchema,
+        schema?: ZodSchema,
         model: BasicModel = 'gpt-4o-2024-08-06',
     ) {
         logger.debug('AI Engine: model:', model)
@@ -541,10 +606,8 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         logger.debug('-------------------------------------------')
         if (apiKey === '__TESTING__') {
             await sleep(100)
-            if (typeof json === 'boolean') {
-                return json
-                    ? JSON.stringify({ message: 'canned response', reasons: [] })
-                    : 'canned response'
+            if (!schema) {
+                return 'canned response'
             }
             return JSON.stringify({ message: 'canned response', reasons: [] })
         }
@@ -555,7 +618,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: messages },
             ],
-            ...getOpenAiOptions(model, json),
+            ...getOpenAiOptions(model, schema),
         })
 
         if (!response.choices[0].message.content) {
@@ -566,14 +629,13 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     }
 
     return {
-        createWorkflow: createWorkflow,
-        createStep,
+        createWorkflow,
         createConversation,
         renderPrompt,
     }
 }
 
-function getOpenAiOptions(model: BasicModel, json: boolean | ZodSchema) {
+function getOpenAiOptions(model: BasicModel, schema?: ZodSchema) {
     const options: Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'> = {
         model,
     }
@@ -586,16 +648,14 @@ function getOpenAiOptions(model: BasicModel, json: boolean | ZodSchema) {
         options.temperature = 0.1
     }
 
-    if (typeof json !== 'boolean') {
+    if (schema) {
         options.response_format = {
             type: 'json_schema',
             json_schema: {
                 name: 'detector_response',
-                schema: zodToJsonSchema(json),
+                schema: zodToJsonSchema(schema),
             },
         }
-    } else if (json) {
-        options.response_format = { type: 'json_object' }
     } else {
         options.response_format = { type: 'text' }
     }
