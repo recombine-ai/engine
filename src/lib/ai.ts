@@ -1,14 +1,13 @@
 // cspell:words lstripBlocks
-import fs from 'fs'
 import OpenAI from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
-import { join } from 'path'
 import nunjucks from 'nunjucks'
 import { ZodSchema } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { Logger } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
 import { sleep } from 'openai/core'
+import { PromptFile } from './prompt-fs'
 
 /**
  * Represents a basic model name for LLMs.
@@ -48,7 +47,7 @@ export interface LLMStep {
      * Prompt can be a simple string or a link to a file, loaded with `loadFile` function which
      * takes a path to the file relative to `src/use-cases` directory. Should be Nunjucks-compatible.
      */
-    prompt: string | File
+    prompt: string | PromptFile
 
     /**
      * Defines the expected structure of the LLM's output.
@@ -217,13 +216,6 @@ export interface AIEngine {
     createStep: <T extends LLMStep | ProgrammaticStep>(step: T) => T
 
     /**
-     * Loads a file from the specified path.
-     * @param path - The path to the file to load.
-     * @returns The loaded File object.
-     */
-    loadFile: (path: string) => File
-
-    /**
      * Creates a new conversation instance.
      * @param messages - Optional initial messages for the conversation.
      * @returns A new Conversation object.
@@ -335,10 +327,6 @@ export interface Message {
     imageUrl?: string
 }
 
-export interface File {
-    content: () => Promise<string>
-}
-
 /**
  * Configuration options for the Engine.
  */
@@ -349,10 +337,6 @@ export interface EngineConfig {
      * @property {() => Promise<string | null>} tokenStorage.getToken - Function that returns a promise resolving to an authentication token or null.
      */
     tokenStorage?: { getToken: () => Promise<string | null> }
-    /**
-     * Optional base URL path for resolving paths to prompts.
-     */
-    basePath?: string
     /**
      * Optional logger instance for handling log messages.
      */
@@ -391,7 +375,6 @@ export interface EngineConfig {
  */
 export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     const logger = cfg.logger || globalThis.console
-    const basePath = cfg.basePath || process.cwd()
     const tokenStorage = cfg.tokenStorage || {
         async getToken() {
             if (process.env.OPENAI_API_KEY) {
@@ -582,21 +565,9 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         return response.choices[0].message.content
     }
 
-    function loadFile(path: string) {
-        // NOTE: there probably will be S3 loading stuff here
-
-        return {
-            content: async () => {
-                logger.debug('AI Engine: loading prompt:', path)
-                return fs.promises.readFile(join(basePath, path), 'utf-8')
-            },
-        }
-    }
-
     return {
         createWorkflow: createWorkflow,
         createStep,
-        loadFile,
         createConversation,
         renderPrompt,
     }
