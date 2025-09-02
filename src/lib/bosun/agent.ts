@@ -3,6 +3,7 @@ import { Logger, Scheduler } from '../interfaces'
 import { SendAction } from './action'
 import { Context } from './context'
 import { Tracer } from './tracer'
+import { Tracer2 } from './tracer2'
 
 /**
  * Bosun is a UI for testing Recombine AI agents. It enables testing complex agent interactions with
@@ -27,6 +28,7 @@ import { Tracer } from './tracer'
 type DefaultContext = Record<string, any>
 export interface TesAgentFactoryProps<CTX extends DefaultContext = DefaultContext> {
     tracer: Tracer
+    tracer2: Tracer2
     logger: Logger
     scheduler: Scheduler
     getMessages: () => Message[]
