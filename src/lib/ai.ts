@@ -406,15 +406,6 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         let beforeEachCallback = async () => Promise.resolve<unknown>(null)
         const attempts = new Map<LLMStep<any>, number>()
         const steps: Array<StringLLMStep<CTX> | JsonLLMStep<CTX, any> | ProgrammaticStep<CTX>> = []
-        const trace = {
-            steps: steps.reduce(
-                (acc, step) => {
-                    acc[step.name] = {}
-                    return acc
-                },
-                {} as Record<string, StepTrace>,
-            ),
-        }
         return {
             terminate: () => {
                 logger.debug('AI Engine: Terminating conversation...')
