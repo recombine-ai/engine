@@ -12,14 +12,20 @@
         "build": "tsc",
         "prepublishOnly": "npm run build",
         "test": "vitest",
-        "docs": "cd docusaurus && yarn build --out-dir ../docs && cd .."
+        "docs": "cd docusaurus && yarn build --out-dir ../docs && cd ..",
+        "lint": "eslint",
+        "lint:fix": "eslint --fix"
     },
     "devDependencies": {
         "@types/node": "^22.8.1",
         "@types/nunjucks": "^3.2.6",
         "prettier": "^3.3.3",
         "typescript": "^5.8.3",
-        "vitest": "^3.0.6"
+        "vitest": "^3.0.6",
+        "@eslint/js": "^9.26.0",
+        "@typescript-eslint/eslint-plugin": "^8.32.0",
+        "eslint": "^9.26.0",
+        "typescript-eslint": "^8.32.0"
     },
     "dependencies": {
         "nunjucks": "^3.2.4",
