@@ -8,7 +8,7 @@ import { Logger } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
 import { sleep } from 'openai/core'
 import { PromptFile } from './prompt-fs'
-import { StepTrace, Tracer2 } from './bosun/tracer2'
+import { StepTrace, StepTracer } from './bosun/stepTracer'
 import { Tracer } from './bosun'
 import { createConsoleTracer, stdPrompt } from './bosun/tracer'
 
@@ -356,7 +356,7 @@ export interface EngineConfig {
      * Optional function for sending actions.
      */
     sendAction?: SendAction
-    tracer2?: Tracer2
+    tracer2?: StepTracer
     tracer?: Tracer
 }
 
@@ -387,7 +387,7 @@ export interface EngineConfig {
  * ```
  */
 export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
-    const tracer2 = cfg.tracer2 || undefined;
+    const stepTracer = cfg.tracer2 || undefined;
     const logger = cfg.logger || globalThis.console
     const tracer = cfg.tracer || createConsoleTracer(logger)
     let apiKey: string | null = null
@@ -494,7 +494,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                     ignoreAddedMessages: step.ignoreAddedMessages,
                 })
                 stepTrace.stringifiedConversation = stringifiedMessages
-                tracer2?.addStepTrace(stepTrace);
+                stepTracer?.addStepTrace(stepTrace);
                 if ('schema' in step) {
                     response = await runLLM(
                         apiKey,
@@ -535,6 +535,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                     ? step.onError((error as Error).message, ctx)
                     : onError((error as Error).message, ctx))
                 // FIXME: this doesn't terminate the workflow
+                stepTracer?.addStepTrace(stepTrace);
                 shouldRun = false
             }
         }
