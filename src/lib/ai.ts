@@ -168,7 +168,7 @@ export interface WorkflowConfig<CTX> {
 }
 
 interface StepBuilder<CTX> {
-    <SCHEMA>(step: JsonLLMStep<CTX, SCHEMA>): JsonLLMStep<CTX, SCHEMA>
+    <Schema extends ZodTypeAny>(step: JsonLLMStep<CTX, Schema>): JsonLLMStep<CTX, Schema>
     (step: StringLLMStep<CTX>): StringLLMStep<CTX>
     (step: ProgrammaticStep<CTX>): ProgrammaticStep<CTX>
 }
