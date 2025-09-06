@@ -474,7 +474,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
             const stepTrace: StepTrace = { 
                 name: step.name, 
                 model: step.model, 
-                schema: step.json instanceof ZodSchema ? step.json : undefined 
+                schema: 'schema' in step ? step.schema instanceof ZodSchema ? step.schema : undefined : undefined
             }
             try {
                 stepTrace.receivedContext = ctx
