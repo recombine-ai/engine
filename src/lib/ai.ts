@@ -2,7 +2,7 @@
 import OpenAI from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import nunjucks from 'nunjucks'
-import { ZodSchema } from 'zod'
+import { ZodSchema, ZodTypeAny } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { Logger } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
@@ -68,13 +68,13 @@ export interface LLMStep<CTX> {
     onError?: (error: string, ctx: CTX) => Promise<unknown>
 }
 
-export interface JsonLLMStep<CTX, SCHEMA> extends LLMStep<CTX> {
+export interface JsonLLMStep<CTX, Schema extends ZodTypeAny> extends LLMStep<CTX> {
     /**
      * Defines the expected structure of the LLM's output. Accepts ZodSchema. When provided, the
      * LLM's response is validated and parsed according to this schema ensuring reliable structured
      * output.
      */
-    schema: ZodSchema<SCHEMA>
+    schema: Schema
     /**
      * Function to execute with the LLM's response. Use {@link setProposedReply} to use the LLM's output as the proposed reply.
      * Or use combination of {@link getProposedReply} and {@link setProposedReply} to substitute parts of the string.
@@ -90,14 +90,14 @@ export interface JsonLLMStep<CTX, SCHEMA> extends LLMStep<CTX> {
      * }
      * ```
      */
-    execute: (reply: SCHEMA, conversation: Conversation, ctx: CTX) => Promise<unknown>
+    execute: (reply: Zod.infer<Schema>, conversation: Conversation, ctx: CTX) => Promise<unknown>
 
     /**
      * Check a condition, whether the `execute` function should run or not
      * @deprecated use `runIf` to check if the step should be run, use if in `execute` to check
      * if it should be executed
      **/
-    shouldExecute?: (reply: SCHEMA, ctx: CTX) => boolean | Promise<boolean>
+    shouldExecute?: (reply: Schema, ctx: CTX) => boolean | Promise<boolean>
 }
 
 export interface StringLLMStep<CTX> extends LLMStep<CTX> {
@@ -155,7 +155,7 @@ export interface Workflow<CTX> {
      */
     beforeEach: (callback: () => Promise<unknown>) => void
 
-    addStep<SCHEMA>(step: JsonLLMStep<CTX, SCHEMA>): void
+    addStep<Schema extends ZodTypeAny>(step: JsonLLMStep<CTX, Schema>): void
     addStep(step: StringLLMStep<CTX>): void
     addStep(step: ProgrammaticStep<CTX>): void
 }
