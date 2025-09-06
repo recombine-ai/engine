@@ -17,15 +17,12 @@ class Context<T extends Ctx> {
     #listeners = new Set<(context: T) => void>()
     #context: T
     constructor(context: T) {
-        this.#context = context
+        this.#context = context || ({} as T)
     }
 
     set<P extends Paths<T>>(path: P extends any[] ? P : never, value: PathValue<T, P>): void
     set(newContext: T): void
     set(pathOrContext: any, value?: any) {
-        if (!this.#context) {
-            return
-        }
         if (!Array.isArray(pathOrContext)) {
             this.#context = pathOrContext
         } else {

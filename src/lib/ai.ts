@@ -2,7 +2,7 @@
 import OpenAI from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import nunjucks from 'nunjucks'
-import { ZodSchema, ZodTypeAny } from 'zod'
+import { ZodSchema, ZodTypeAny, z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { Logger } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
@@ -155,6 +155,9 @@ export interface Workflow<CTX> {
      */
     beforeEach: (callback: () => Promise<unknown>) => void
 
+    /**
+     * Add a step to workflow
+     */
     addStep<Schema extends ZodTypeAny>(step: JsonLLMStep<CTX, Schema>): void
     addStep(step: StringLLMStep<CTX>): void
     addStep(step: ProgrammaticStep<CTX>): void
@@ -162,6 +165,12 @@ export interface Workflow<CTX> {
 
 export interface WorkflowConfig<CTX> {
     onError: (error: string, ctx: CTX) => Promise<unknown>
+}
+
+interface StepBuilder<CTX> {
+    <SCHEMA>(step: JsonLLMStep<CTX, SCHEMA>): JsonLLMStep<CTX, SCHEMA>
+    (step: StringLLMStep<CTX>): StringLLMStep<CTX>
+    (step: ProgrammaticStep<CTX>): ProgrammaticStep<CTX>
 }
 
 /**
@@ -229,6 +238,12 @@ export interface AIEngine {
      * @returns A new Conversation object.
      */
     createConversation: (messages?: Message[]) => Conversation
+
+    /**
+     * Get the function to create steps to use with workflow.addStep(step)
+     * if you want to define steps outside of workflow.
+     */
+    getStepBuilder<CTX>(): StepBuilder<CTX>
 
     /**
      * Renders a prompt string using Nunjucks templating engine.
@@ -617,6 +632,9 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         createWorkflow,
         createConversation,
         renderPrompt,
+        getStepBuilder() {
+            return (step: any) => step
+        },
     }
 }
 
@@ -706,4 +724,8 @@ export function createConversation(initialMessages: Message[] = []): Conversatio
             names.agent = name
         },
     }
+}
+
+export function getStepBuilder<CTX = unknown>(): StepBuilder<CTX> {
+    return (step: any) => step
 }
