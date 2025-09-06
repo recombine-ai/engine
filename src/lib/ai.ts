@@ -8,6 +8,7 @@ import { Logger } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
 import { sleep } from 'openai/core'
 import { PromptFile } from './prompt-fs'
+import { StepTrace, StepTracer } from './bosun/stepTracer'
 import { Tracer } from './bosun'
 import { createConsoleTracer, stdPrompt } from './bosun/tracer'
 
@@ -126,16 +127,6 @@ export interface StringLLMStep<CTX> extends LLMStep<CTX> {
 }
 
 /**
- * A useful trace of a step execution. It's properties are filled during the execution. There is no guarantee that any of them will be filled.
- */
-export type StepTrace = {
-    renderedPrompt?: string
-    receivedContext?: Record<string, unknown>
-    receivedPrompt?: string
-    stringifiedConversation?: string
-}
-
-/**
  * An AI workflow composed of steps.
  */
 export interface Workflow<CTX> {
@@ -150,10 +141,7 @@ export interface Workflow<CTX> {
      * @param messages - The conversation context for the workflow
      * @returns The proposed reply if workflow completes, or null if terminated
      */
-    run: (
-        messages: Conversation,
-        ctx?: CTX,
-    ) => Promise<{ reply: string | null; trace: { steps: Record<string, StepTrace> } }>
+    run: (messages: Conversation, ctx?: CTX) => Promise<string | null>
 
     /**
      * Rewinds the workflow execution to a specific step.
@@ -365,7 +353,7 @@ export interface EngineConfig {
      * Optional function for sending actions.
      */
     sendAction?: SendAction
-
+    stepTracer?: StepTracer
     tracer?: Tracer
 }
 
@@ -396,6 +384,7 @@ export interface EngineConfig {
  * ```
  */
 export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
+    const stepTracer = cfg.stepTracer || undefined
     const logger = cfg.logger || globalThis.console
     const tracer = cfg.tracer || createConsoleTracer(logger)
     let apiKey: string | null = null
@@ -414,15 +403,6 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         let beforeEachCallback = async () => Promise.resolve<unknown>(null)
         const attempts = new Map<LLMStep<any>, number>()
         const steps: Array<StringLLMStep<CTX> | JsonLLMStep<CTX, any> | ProgrammaticStep<CTX>> = []
-        const trace = {
-            steps: steps.reduce(
-                (acc, step) => {
-                    acc[step.name] = {}
-                    return acc
-                },
-                {} as Record<string, StepTrace>,
-            ),
-        }
         return {
             terminate: () => {
                 logger.debug('AI Engine: Terminating conversation...')
@@ -440,18 +420,14 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                         await action('started')
                         logger.debug(`AI Engine: Step: ${step.name}`)
                         if ('prompt' in step) {
-                            const stepTrace = await runStep(step, messages, ctx, onError)
-                            trace.steps[step.name] = stepTrace
+                            await runStep(step, messages, ctx, onError)
                         } else {
                             await runProgrammaticStep(step, messages, ctx)
                         }
                         await action('completed')
                     }
                 }
-                return {
-                    reply: shouldRun ? messages.getProposedReply() : null,
-                    trace,
-                }
+                return shouldRun ? messages.getProposedReply() : null
             },
             rewindTo: (step: LLMStep<CTX> | ProgrammaticStep<CTX>) => {
                 const index = steps.indexOf(step as any)
@@ -485,14 +461,23 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
             conversation: Conversation,
             ctx: any,
             onError: WorkflowConfig<CTX>['onError'],
-        ): Promise<StepTrace> {
+        ): Promise<void> {
             if (!apiKey) {
                 apiKey = await tokenStorage.getToken()
             }
             if (!apiKey) {
                 throw new Error('LLM API key is not provided')
             }
-            const stepTrace: StepTrace = {}
+            const stepTrace: StepTrace = {
+                name: step.name,
+                model: step.model,
+                schema:
+                    'schema' in step
+                        ? step.schema instanceof ZodSchema
+                            ? step.schema
+                            : undefined
+                        : undefined,
+            }
             try {
                 stepTrace.receivedContext = ctx
                 let response: string | null = null
@@ -511,6 +496,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                     ignoreAddedMessages: step.ignoreAddedMessages,
                 })
                 stepTrace.stringifiedConversation = stringifiedMessages
+                stepTracer?.addStepTrace(stepTrace)
                 if ('schema' in step) {
                     response = await runLLM(
                         apiKey,
@@ -546,14 +532,13 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                     logger.debug(`AI Engine: replying`)
                     await step.execute(response, conversation, ctx)
                 }
-                return stepTrace
             } catch (error) {
                 await (step.onError
                     ? step.onError((error as Error).message, ctx)
                     : onError((error as Error).message, ctx))
                 // FIXME: this doesn't terminate the workflow
+                stepTracer?.addStepTrace(stepTrace)
                 shouldRun = false
-                return stepTrace
             }
         }
 

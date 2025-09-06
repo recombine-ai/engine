@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { AIEngine } from './ai'
+import { AIEngine, createAIEngine } from './ai'
 
 describe('conversationExample', () => {
     it('outputs conversation string ignoring added messages', () => {
-        const engine = AIEngine.createAIEngine()
+        const engine = createAIEngine()
         const conversation = engine.createConversation([
             {
                 sender: 'user',
@@ -31,7 +31,7 @@ describe('conversationExample', () => {
     })
 
     it('outputs full conversation string including added messages and proposed reply', () => {
-        const engine = AIEngine.createAIEngine()
+        const engine = createAIEngine()
         const conversation = engine.createConversation([
             {
                 sender: 'user',
