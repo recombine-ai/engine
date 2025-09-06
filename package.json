@@ -14,7 +14,8 @@
         "test": "vitest",
         "docs": "cd docusaurus && yarn build --out-dir ../docs && cd ..",
         "lint": "eslint",
-        "lint:fix": "eslint --fix"
+        "lint:fix": "eslint --fix",
+        "format": "prettier --write ."
     },
     "devDependencies": {
         "@types/node": "^22.8.1",

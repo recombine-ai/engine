@@ -2,8 +2,8 @@ import { ZodSchema } from 'zod'
 import { Logger } from '../interfaces'
 
 export type StepTrace = {
-    name: string,
-    renderedPrompt?: string,
+    name: string
+    renderedPrompt?: string
     receivedContext?: Record<string, unknown>
     receivedPrompt?: string | File
     stringifiedConversation?: string

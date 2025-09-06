@@ -141,10 +141,7 @@ export interface Workflow<CTX> {
      * @param messages - The conversation context for the workflow
      * @returns The proposed reply if workflow completes, or null if terminated
      */
-    run: (
-        messages: Conversation,
-        ctx?: CTX,
-    ) => Promise<string | null>
+    run: (messages: Conversation, ctx?: CTX) => Promise<string | null>
 
     /**
      * Rewinds the workflow execution to a specific step.
@@ -387,7 +384,7 @@ export interface EngineConfig {
  * ```
  */
 export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
-    const stepTracer = cfg.stepTracer || undefined;
+    const stepTracer = cfg.stepTracer || undefined
     const logger = cfg.logger || globalThis.console
     const tracer = cfg.tracer || createConsoleTracer(logger)
     let apiKey: string | null = null
@@ -471,10 +468,15 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
             if (!apiKey) {
                 throw new Error('LLM API key is not provided')
             }
-            const stepTrace: StepTrace = { 
-                name: step.name, 
-                model: step.model, 
-                schema: 'schema' in step ? step.schema instanceof ZodSchema ? step.schema : undefined : undefined
+            const stepTrace: StepTrace = {
+                name: step.name,
+                model: step.model,
+                schema:
+                    'schema' in step
+                        ? step.schema instanceof ZodSchema
+                            ? step.schema
+                            : undefined
+                        : undefined,
             }
             try {
                 stepTrace.receivedContext = ctx
@@ -494,7 +496,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                     ignoreAddedMessages: step.ignoreAddedMessages,
                 })
                 stepTrace.stringifiedConversation = stringifiedMessages
-                stepTracer?.addStepTrace(stepTrace);
+                stepTracer?.addStepTrace(stepTrace)
                 if ('schema' in step) {
                     response = await runLLM(
                         apiKey,
@@ -535,7 +537,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                     ? step.onError((error as Error).message, ctx)
                     : onError((error as Error).message, ctx))
                 // FIXME: this doesn't terminate the workflow
-                stepTracer?.addStepTrace(stepTrace);
+                stepTracer?.addStepTrace(stepTrace)
                 shouldRun = false
             }
         }
