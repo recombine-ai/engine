@@ -356,7 +356,7 @@ export interface EngineConfig {
      * Optional function for sending actions.
      */
     sendAction?: SendAction
-    tracer2?: StepTracer
+    stepTracer?: StepTracer
     tracer?: Tracer
 }
 
@@ -387,7 +387,7 @@ export interface EngineConfig {
  * ```
  */
 export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
-    const stepTracer = cfg.tracer2 || undefined;
+    const stepTracer = cfg.stepTracer || undefined;
     const logger = cfg.logger || globalThis.console
     const tracer = cfg.tracer || createConsoleTracer(logger)
     let apiKey: string | null = null

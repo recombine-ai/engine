@@ -28,7 +28,7 @@ import { StepTracer } from './stepTracer'
 type DefaultContext = Record<string, any>
 export interface TesAgentFactoryProps<CTX extends DefaultContext = DefaultContext> {
     tracer: Tracer
-    tracer2: StepTracer
+    stepTracer: StepTracer
     logger: Logger
     scheduler: Scheduler
     getMessages: () => Message[]
