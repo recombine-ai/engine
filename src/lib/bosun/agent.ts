@@ -26,7 +26,7 @@ import { StepTracer } from './stepTracer'
  * ```
  */
 type DefaultContext = Record<string, any>
-export interface TesAgentFactoryProps<CTX extends DefaultContext = DefaultContext> {
+export interface TestAgentFactoryProps<CTX extends DefaultContext = DefaultContext> {
     tracer: Tracer
     stepTracer: StepTracer
     logger: Logger
@@ -56,7 +56,7 @@ export interface TestVoiceAgent {
 export type TestAgent = TestTextAgent | TestVoiceAgent
 
 export type TestAgentFactory<T extends DefaultContext = DefaultContext> = (
-    props: TesAgentFactoryProps<T>,
+    props: TestAgentFactoryProps<T>,
 ) => Promise<TestAgent>
 
 export function createTestAgentFactory<T extends DefaultContext>(creator: TestAgentFactory<T>) {
