@@ -652,17 +652,12 @@ function getOpenAiOptions(model: BasicModel, schema?: ZodSchema) {
     }
 
     if (schema) {
-        // ...
-        if (schema) {
-            options.response_format = {
-                type: 'json_schema',
-                json_schema: {
-                    name: 'detector_response',
-                    ...zodToJsonSchema(schema),
-                },
-            }
-        } else {
-            options.response_format = { type: 'text' }
+        options.response_format = {
+            type: 'json_schema',
+            json_schema: {
+                name: 'detector_response',
+                schema: zodToJsonSchema(schema),
+            },
         }
     } else {
         options.response_format = { type: 'text' }
