@@ -2,8 +2,7 @@
 import OpenAI from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import nunjucks from 'nunjucks'
-import { ZodSchema, z } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { ZodSchema, ZodTypeAny, z } from 'zod'
 import { Logger } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
 import { sleep } from 'openai/core'
@@ -11,6 +10,7 @@ import { PromptFile } from './prompt-fs'
 import { StepTrace, StepTracer } from './bosun/stepTracer'
 import { Tracer } from './bosun'
 import { createConsoleTracer, stdPrompt } from './bosun/tracer'
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 /**
  * Represents a basic model name for LLMs.
@@ -68,13 +68,13 @@ export interface LLMStep<CTX> {
     onError?: (error: string, ctx: CTX) => Promise<unknown>
 }
 
-export interface JsonLLMStep<CTX, SCHEMA> extends LLMStep<CTX> {
+export interface JsonLLMStep<CTX, Schema extends ZodTypeAny> extends LLMStep<CTX> {
     /**
      * Defines the expected structure of the LLM's output. Accepts ZodSchema. When provided, the
      * LLM's response is validated and parsed according to this schema ensuring reliable structured
      * output.
      */
-    schema: ZodSchema<SCHEMA>
+    schema: Schema
     /**
      * Function to execute with the LLM's response. Use {@link setProposedReply} to use the LLM's output as the proposed reply.
      * Or use combination of {@link getProposedReply} and {@link setProposedReply} to substitute parts of the string.
@@ -90,14 +90,14 @@ export interface JsonLLMStep<CTX, SCHEMA> extends LLMStep<CTX> {
      * }
      * ```
      */
-    execute: (reply: SCHEMA, conversation: Conversation, ctx: CTX) => Promise<unknown>
+    execute: (reply: Zod.infer<Schema>, conversation: Conversation, ctx: CTX) => Promise<unknown>
 
     /**
      * Check a condition, whether the `execute` function should run or not
      * @deprecated use `runIf` to check if the step should be run, use if in `execute` to check
      * if it should be executed
      **/
-    shouldExecute?: (reply: SCHEMA, ctx: CTX) => boolean | Promise<boolean>
+    shouldExecute?: (reply: Schema, ctx: CTX) => boolean | Promise<boolean>
 }
 
 export interface StringLLMStep<CTX> extends LLMStep<CTX> {
@@ -158,7 +158,7 @@ export interface Workflow<CTX> {
     /**
      * Add a step to workflow
      */
-    addStep<SCHEMA>(step: JsonLLMStep<CTX, SCHEMA>): void
+    addStep<Schema extends ZodTypeAny>(step: JsonLLMStep<CTX, Schema>): void
     addStep(step: StringLLMStep<CTX>): void
     addStep(step: ProgrammaticStep<CTX>): void
 }
@@ -168,7 +168,7 @@ export interface WorkflowConfig<CTX> {
 }
 
 interface StepBuilder<CTX> {
-    <SCHEMA>(step: JsonLLMStep<CTX, SCHEMA>): JsonLLMStep<CTX, SCHEMA>
+    <Schema extends ZodTypeAny>(step: JsonLLMStep<CTX, Schema>): JsonLLMStep<CTX, Schema>
     (step: StringLLMStep<CTX>): StringLLMStep<CTX>
     (step: ProgrammaticStep<CTX>): ProgrammaticStep<CTX>
 }
