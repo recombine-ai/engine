@@ -3,7 +3,6 @@ import OpenAI from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import nunjucks from 'nunjucks'
 import { ZodSchema, ZodTypeAny, z } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
 import { Logger } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
 import { sleep } from 'openai/core'
@@ -11,6 +10,7 @@ import { PromptFile } from './prompt-fs'
 import { StepTrace, StepTracer } from './bosun/stepTracer'
 import { Tracer } from './bosun'
 import { createConsoleTracer, stdPrompt } from './bosun/tracer'
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 /**
  * Represents a basic model name for LLMs.
@@ -652,12 +652,17 @@ function getOpenAiOptions(model: BasicModel, schema?: ZodSchema) {
     }
 
     if (schema) {
-        options.response_format = {
-            type: 'json_schema',
-            json_schema: {
-                name: 'detector_response',
-                schema: zodToJsonSchema(schema),
-            },
+        // ...
+        if (schema) {
+            options.response_format = {
+                type: 'json_schema',
+                json_schema: {
+                    name: 'detector_response',
+                    ...zodToJsonSchema(schema),
+                },
+            }
+        } else {
+            options.response_format = { type: 'text' }
         }
     } else {
         options.response_format = { type: 'text' }
