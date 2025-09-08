@@ -10,7 +10,7 @@ import { PromptFile } from './prompt-fs'
 import { StepTrace, StepTracer } from './bosun/stepTracer'
 import { Tracer } from './bosun'
 import { createConsoleTracer, stdPrompt } from './bosun/tracer'
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { zodToJsonSchema } from 'zod-to-json-schema'
 
 /**
  * Represents a basic model name for LLMs.
@@ -368,7 +368,9 @@ export interface EngineConfig {
      * Optional function for sending actions.
      */
     sendAction?: SendAction
+    /** traces received prompt, rendered prompt, context and other useful info about LLM execution */
     stepTracer?: StepTracer
+    /** registers steps in workflow */
     tracer?: Tracer
 }
 

@@ -8,12 +8,15 @@ Breaking changes:
 -   `TestAgentFactory` now returns a promise
 -   `TesAgentFactoryProps` now requires `Tracer` and doesn't require `AIEngine`
 -   `loadFile` method was removed in favor of `PromptFS`
+-   `workflow.run` now returns a string instead object as a response
 
 Other changes
 
 -   interface `TestVoiceAgent` added
 -   interface `Tracer` added
 -   interface `PromptFS` and function `createLocalFS` were added
+-   added `StepTracer` interface
+-   Engine config now accepts `tracer` and `stepTracer`
 
 ### 0.5.0 → 0.6.0 (unstable)
 
