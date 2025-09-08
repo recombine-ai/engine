@@ -1,16 +1,19 @@
-import { AIEngine } from '../ai'
+import { AIEngine, Message } from '../ai'
 import { Logger, Scheduler } from '../interfaces'
 import { SendAction } from './action'
 import { Context } from './context'
+import { Tracer } from './tracer'
+import { StepTracer } from './stepTracer'
 
 /**
- * Bosun is a UI for testing Recombine AI agents. It enables testing complex agent interactions with multiple steps, error handling, and state management.
- * 
+ * Bosun is a UI for testing Recombine AI agents. It enables testing complex agent interactions with
+ * multiple steps, error handling, and state management.
+ *
  * @example
  * ```typescript
  * // In workflows.ts
  * const agents = {
- *     "testbot": createTestAgentFactory((props) => {
+ *     "testBot": createTestAgentFactory((props) => {
  *         return {
  *             start: async () => { ... },
  *             reactOnMessage: async () => { ... },
@@ -18,36 +21,44 @@ import { Context } from './context'
  *         }
  *     })
  * }
- * 
+ *
  * export agents;
  * ```
  */
-export namespace Bosun{
-    type DefaultContext = Record<string, any>
-    export interface TesAgentFactoryProps<CTX extends DefaultContext = DefaultContext> {
-        logger: Logger
-        scheduler: Scheduler.Scheduler
-        ai: AIEngine.AIEngine
-        getMessages: () => AIEngine.Message[]
-        sendMessage: (message: string | AIEngine.Message) => Promise<void>
-        sendAction: SendAction
-        ctx: Context<CTX>
-    }
-    
-    export interface TestAgent {
-        start: () => Promise<unknown>
-        reactOnMessage: () => Promise<unknown>
-        respondToMessage: () => Promise<unknown>
-        isAssigned: () => Promise<boolean>
-        onFatalError: (error: Error) => Promise<unknown>
-    }
-    
-    export type TestAgentFactory<T extends DefaultContext = DefaultContext> = (
-        props: TesAgentFactoryProps<T>,
-    ) => TestAgent
-    
-    export function createTestAgentFactory<T extends DefaultContext>(creator: TestAgentFactory<T>) {
-        return creator
-    }
-    
+type DefaultContext = Record<string, any>
+export interface TestAgentFactoryProps<CTX extends DefaultContext = DefaultContext> {
+    tracer: Tracer
+    stepTracer: StepTracer
+    logger: Logger
+    scheduler: Scheduler
+    getMessages: () => Message[]
+    sendMessage: (message: string | Message) => Promise<void>
+    sendAction: SendAction
+    ctx: Context<CTX>
+}
+
+export interface TestTextAgent {
+    start: () => Promise<unknown>
+    reactOnMessage: () => Promise<unknown>
+    respondToMessage: () => Promise<unknown>
+    isAssigned: () => Promise<boolean>
+    onFatalError: (error: Error) => Promise<unknown>
+}
+export interface TestVoiceAgent {
+    streamResponse: () => Promise<unknown>
+    onCallEnd: () => Promise<unknown>
+    onCallStart: () => Promise<unknown>
+    onFatalError: (error: Error) => Promise<unknown>
+    // TODO move this to ctx.
+    resetContext: () => Promise<unknown>
+}
+
+export type TestAgent = TestTextAgent | TestVoiceAgent
+
+export type TestAgentFactory<T extends DefaultContext = DefaultContext> = (
+    props: TestAgentFactoryProps<T>,
+) => Promise<TestAgent>
+
+export function createTestAgentFactory<T extends DefaultContext>(creator: TestAgentFactory<T>) {
+    return creator
 }
