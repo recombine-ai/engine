@@ -1,5 +1,9 @@
 # Changelog
 
+### 0.6.0 → 0.7.1 (unstable)
+
+-   fixed multiple runs on static workflows
+
 ### 0.6.0 → 0.7.0 (unstable)
 
 Breaking changes:

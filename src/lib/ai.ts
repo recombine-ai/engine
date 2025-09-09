@@ -430,6 +430,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                     await beforeEachCallback()
                     const step = steps[currentStep]
                     if (!shouldRun) {
+                        logger.debug('AI Engine: run terminated')
                         break
                     }
                     if (!step.runIf || (await step.runIf(messages, ctx))) {
@@ -444,6 +445,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                         await action('completed')
                     }
                 }
+                currentStep = 0
                 return shouldRun ? messages.getProposedReply() : null
             },
             rewindTo: (step: LLMStep<CTX> | ProgrammaticStep<CTX>) => {
@@ -535,7 +537,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 if (!response) {
                     throw new Error('No response from OpenAI')
                 }
-                logger.debug(`AI Engine: response: ${response}`)
+                logger.debug(`AI Engine: response:`, response)
                 if (typeof step.shouldExecute === 'function') {
                     if (await step.shouldExecute(response, ctx)) {
                         logger.debug(`AI Engine: executing`)
