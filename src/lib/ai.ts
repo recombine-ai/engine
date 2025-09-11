@@ -737,10 +737,43 @@ export function getStepBuilder<CTX = unknown>(): StepBuilder<CTX> {
 }
 
 /**
- * Validate a LiquidJS template against a provided context.
- * - Uses Liquid's static analysis to extract variable paths referenced by the template
- * - Resolves each path against `context` to detect: used, missing and type-mismatch cases
- * - Flattens `context` to report which context values are unused by the template
+ * Validate a Liquid template against a provided context using LiquidJS static analysis.
+ *
+ * This performs a fast, non-rendering, synchronous analysis to help IDEs and tooling
+ * (e.g. Monaco editor) highlight variable issues and syntax errors before execution.
+ *
+ * Behavior:
+ * - Parses the Liquid template and, if successful, extracts referenced variable paths
+ *   using `globalVariableSegmentsSync` (falls back to `variableSegmentsSync`).
+ * - Resolves each referenced path against the supplied `context` and classifies:
+ *   - usedVariablesFromContext: variables that exist in `context` (by path).
+ *   - variablesMissingFromContext: variables referenced by the template but absent in `context`.
+ *   - mistypedVariables: variables where access type is invalid (e.g., numeric index on non-array,
+ *     or dot access on non-object).
+ * - Flattens `context` into canonical paths to compute unusedVariablesFromContext.
+ * - If parsing fails, returns `isValidLiquidJs = false` and includes a `parseErrors` array with
+ *   error location information (row, col, file and the line text), suitable for editor diagnostics.
+ *
+ * Notes:
+ * - Variable paths use canonical string notation (e.g., `user.name`, `items[0].id`, `a[b.c].d`).
+ * - Dynamic bracket keys are evaluated from `context` when possible; otherwise, the whole access
+ *   is treated as missing.
+ * - Analysis may traverse partials depending on your Liquid instance configuration and the
+ *   LiquidJS defaults; this function does not render templates.
+ *
+ * @param options.prompt The Liquid template string to analyze.
+ * @param options.context The object representing the available variables and types.
+ * @returns An object describing usage, missing paths, type mismatches, parse validity and errors.
+ *
+ * @example
+ * const ctx = { user: { name: 'John', id: 12 }, date: '14-01-2000' }
+ * const tpl = 'Hello, {{user.name}}. Your id is {{id}}. The date is {{date}}'
+ * const res = validatePrompts({ prompt: tpl, context: ctx })
+ * // res.usedVariablesFromContext => ['user.name', 'date']
+ * // res.variablesMissingFromContext => ['id']
+ * // res.unusedVariablesFromContext includes: 'user', 'user.id'
+ * // res.mistypedVariables => []
+ * // res.isValidLiquidJs => true
  */
 export function validatePrompts(options: {prompt: string, context: Record<string, unknown>}): {
     usedVariablesFromContext: string[],
