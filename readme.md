@@ -11,7 +11,7 @@ A TypeScript library for building agentic workflows for conversational AI.
 -   📝 Structured responses using Zod schemas
 -   🗂️ File-based prompts
 -   ⚡ Message history management
--   🌍 Context injection using Nunjucks templates
+-   🌍 Context injection using Liquid templates
 -   👩‍💻 Ready to be integrated with Recombine Bosun prompt-engineering IDE.
 
 ## Installation

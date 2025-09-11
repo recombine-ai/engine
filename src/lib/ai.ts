@@ -1,7 +1,7 @@
 // cspell:words lstripBlocks
 import OpenAI from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
-import nunjucks from 'nunjucks'
+import { Liquid } from 'liquidjs'
 import { ZodSchema, ZodTypeAny, z } from 'zod'
 import { Logger } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
@@ -48,7 +48,7 @@ export interface LLMStep<CTX> {
 
     /**
      * Prompt can be a simple string or a link to a file, loaded with `loadFile` function which
-     * takes a path to the file relative to `src/use-cases` directory. Should be Nunjucks-compatible.
+     * takes a path to the file relative to `src/use-cases` directory. Should be Liquid-compatible.
      */
     prompt: string | PromptFile
 
@@ -190,7 +190,7 @@ interface StepBuilder<CTX> {
  * // Define workflow steps
  * const killswitch = ai.createStep({
  *   name: 'killswitch',
- *   prompt: ai.loadFile('prompts/killswitch.njk'),
+ *   prompt: ai.loadFile('prompts/killswitch.liquid'),
  *   execute: async (reply) => {
  *     const result = JSON.parse(reply)
  *     if (result.terminate) {
@@ -203,7 +203,7 @@ interface StepBuilder<CTX> {
  *
  * const analyzeIntent = ai.createStep({
  *   name: 'analyze-intent',
- *   prompt: ai.loadFile('prompts/analyze-intent.njk'),
+ *   prompt: ai.loadFile('prompts/analyze-intent.liquid'),
  *   execute: async (reply) => {
  *     const intent = JSON.parse(reply)
  *     conversation.addDirective(`User intent is: ${intent.category}`)
@@ -213,7 +213,7 @@ interface StepBuilder<CTX> {
  *
  * const mainReply = ai.createStep({
  *   name: 'main-reply',
- *   prompt: ai.loadFile('prompts/generate-response.njk'),
+ *   prompt: ai.loadFile('prompts/generate-response.liquid'),
  *   execute: async (reply) => conversation.setProposedReply(reply),
  *   onError: async (error) => conversation.setProposedReply(`I'm sorry, I'm having trouble right now.`)
  * })
@@ -246,7 +246,7 @@ export interface AIEngine {
     getStepBuilder<CTX>(): StepBuilder<CTX>
 
     /**
-     * Renders a prompt string using Nunjucks templating engine.
+     * Renders a prompt string using LiquidJS templating engine.
      * @param prompt - The prompt string to render.
      * @param context - Optional context object to use for rendering the prompt.
      * @returns The rendered prompt string.
@@ -504,7 +504,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                     'AI Engine: messages',
                     conversation.toString({ ignoreAddedMessages: step.ignoreAddedMessages }),
                 )
-                prompt = renderPrompt(prompt, ctx)
+                prompt = await renderPrompt(prompt, ctx)
 
                 stepTrace.renderedPrompt = prompt
                 const stringifiedMessages = conversation.toString({
@@ -666,13 +666,19 @@ function getOpenAiOptions(model: BasicModel, schema?: ZodSchema) {
     return options
 }
 
-function renderPrompt(prompt: string, context?: Record<string, unknown>): string {
-    nunjucks.configure({
-        autoescape: false,
-        trimBlocks: true,
-        lstripBlocks: true,
-    })
-    return nunjucks.renderString(prompt, context || {})
+const liquid = new Liquid({
+    trimTagLeft: true,
+    trimTagRight: true,
+    trimOutputLeft: true,
+    trimOutputRight: true,
+    greedy: true,
+})
+
+async function renderPrompt(
+    prompt: string,
+    context?: Record<string, unknown>,
+): Promise<string> {
+    return await liquid.parseAndRender(prompt, context || {})
 }
 
 export function createConversation(initialMessages: Message[] = []): Conversation {
@@ -728,4 +734,202 @@ export function createConversation(initialMessages: Message[] = []): Conversatio
 
 export function getStepBuilder<CTX = unknown>(): StepBuilder<CTX> {
     return (step: any) => step
+}
+
+/**
+ * Validate a LiquidJS template against a provided context.
+ * - Uses Liquid's static analysis to extract variable paths referenced by the template
+ * - Resolves each path against `context` to detect: used, missing and type-mismatch cases
+ * - Flattens `context` to report which context values are unused by the template
+ */
+export function validatePrompts(options: {prompt: string, context: Record<string, unknown>}): {
+    usedVariablesFromContext: string[],
+    unusedVariablesFromContext: string[],
+    variablesMissingFromContext: string[],
+    mistypedVariables: {variable: string, expectedType: string, actualType: string}[],
+    isValidLiquidJs: boolean
+}  {
+    const { prompt, context } = options
+
+    // Normalize JS values to simple type strings for readable diagnostics
+    const toType = (v: unknown): string => {
+        if (Array.isArray(v)) return 'array'
+        if (v === null) return 'null'
+        return typeof v
+    }
+
+    // Object-like guard (includes arrays but excludes null)
+    const isObjectLike = (v: unknown): v is Record<string, unknown> =>
+        typeof v === 'object' && v !== null
+
+    // Convert Liquid variable segments to a canonical string path
+    // Examples:
+    //  ['user','name']      -> 'user.name'
+    //  ['arr', 0]           -> 'arr[0]'
+    //  ['a', ['b','c'], 'd']-> 'a[b.c].d'
+    const segmentsToPath = (segments: Array<string | number | string[]>): string => {
+        let out = ''
+        for (let i = 0; i < segments.length; i++) {
+            const seg = segments[i]
+            if (typeof seg === 'number') {
+                out += `[${seg}]`
+            } else if (Array.isArray(seg)) {
+                out += `[${seg.join('.')}]`
+            } else {
+                out += out ? `.${seg}` : seg
+            }
+        }
+        return out
+    }
+
+    // Resolve a variable path against the provided context with minimal type checks:
+    // - Numeric segments expect an array
+    // - Dot access expects an object-like value
+    // - Dynamic bracket keys are resolved from context when possible
+    const resolvePath = (
+        base: unknown,
+        segments: Array<string | number | string[]>,
+    ): {
+        exists: boolean
+        value: unknown
+        mistype?: { expectedType: string; actualType: string }
+        failedAt?: number
+    } => {
+        let cur: unknown = base
+        for (let i = 0; i < segments.length; i++) {
+            const seg = segments[i]
+            if (typeof seg === 'number') {
+                if (!Array.isArray(cur)) {
+                    return {
+                        exists: false,
+                        value: undefined,
+                        mistype: { expectedType: 'array', actualType: toType(cur) },
+                        failedAt: i,
+                    }
+                }
+                cur = cur[seg]
+                continue
+            }
+
+            if (Array.isArray(seg)) {
+                // Resolve dynamic key (e.g. a[b.c]) from the base context
+                const keyResolution = resolvePath(base, seg)
+                if (!keyResolution.exists) {
+                    return { exists: false, value: undefined, failedAt: i }
+                }
+                const key = keyResolution.value as any
+                if (typeof key === 'number') {
+                    if (!Array.isArray(cur)) {
+                        return {
+                            exists: false,
+                            value: undefined,
+                            mistype: { expectedType: 'array', actualType: toType(cur) },
+                            failedAt: i,
+                        }
+                    }
+                    cur = cur[key]
+                } else {
+                    if (!isObjectLike(cur)) {
+                        return {
+                            exists: false,
+                            value: undefined,
+                            mistype: { expectedType: 'object', actualType: toType(cur) },
+                            failedAt: i,
+                        }
+                    }
+                    cur = (cur as any)[key]
+                }
+                continue
+            }
+
+            if (!isObjectLike(cur)) {
+                return {
+                    exists: false,
+                    value: undefined,
+                    mistype: { expectedType: 'object', actualType: toType(cur) },
+                    failedAt: i,
+                }
+            }
+            cur = (cur as any)[seg]
+        }
+        return { exists: cur !== undefined, value: cur }
+    }
+
+    // Flatten context into a set of canonical paths for unused detection.
+    // Adds both containers (objects/arrays) and leaf paths; prevents cycles.
+    const flattenContext = (obj: unknown, prefix = '', acc: Set<string> = new Set(), seen = new Set<any>()) => {
+        if (!isObjectLike(obj) && !Array.isArray(obj)) {
+            if (prefix) acc.add(prefix)
+            return acc
+        }
+        if (obj && typeof obj === 'object') {
+            if (seen.has(obj)) return acc
+            seen.add(obj)
+        }
+        if (Array.isArray(obj)) {
+            if (prefix) acc.add(prefix)
+            for (let i = 0; i < obj.length; i++) {
+                const p = `${prefix}[${i}]`
+                acc.add(p)
+                flattenContext(obj[i], p, acc, seen)
+            }
+            return acc
+        }
+        if (prefix) acc.add(prefix)
+        for (const key of Object.keys(obj as Record<string, unknown>)) {
+            const p = prefix ? `${prefix}.${key}` : key
+            acc.add(p)
+            flattenContext((obj as any)[key], p, acc, seen)
+        }
+        return acc
+    }
+
+    let isValidLiquidJs = true
+    let variableSegments: Array<Array<string | number | string[]>> = []
+    try {
+        // Parse once to validate Liquid syntax and to get a Template for analysis
+        const template = liquid.parse(prompt)
+        // Use global variables to exclude locals introduced by tags (assign/for)
+        const anyLiquid: any = liquid as any
+        if (typeof anyLiquid.globalVariableSegmentsSync === 'function') {
+            variableSegments = anyLiquid.globalVariableSegmentsSync(template) || []
+        } else if (typeof anyLiquid.variableSegmentsSync === 'function') {
+            variableSegments = anyLiquid.variableSegmentsSync(template) || []
+        } else {
+            variableSegments = []
+        }
+    } catch {
+        // If parsing fails, mark invalid; still return a structured result
+        isValidLiquidJs = false
+    }
+
+    // Gather used, missing and mistyped variables by resolving each referenced path
+    const usedVarsSet = new Set<string>()
+    const missingVarsSet = new Set<string>()
+    const mistyped: { variable: string; expectedType: string; actualType: string }[] = []
+
+    for (const segs of variableSegments) {
+        const pathStr = segmentsToPath(segs)
+        const res = resolvePath(context, segs)
+        if (res.exists) {
+            usedVarsSet.add(pathStr)
+        } else {
+            missingVarsSet.add(pathStr)
+            if (res.mistype) {
+                mistyped.push({ variable: pathStr, ...res.mistype })
+            }
+        }
+    }
+
+    // Compute unused by subtracting used paths from all flattened context paths
+    const allContextPaths = flattenContext(context)
+    const unusedVariablesFromContext = Array.from(allContextPaths).filter((p) => !usedVarsSet.has(p))
+
+    return {
+        usedVariablesFromContext: Array.from(usedVarsSet),
+        unusedVariablesFromContext,
+        variablesMissingFromContext: Array.from(missingVarsSet),
+        mistypedVariables: mistyped,
+        isValidLiquidJs,
+    }
 }

@@ -381,11 +381,6 @@
   dependencies:
     undici-types "~6.19.8"
 
-"@types/nunjucks@^3.2.6":
-  version "3.2.6"
-  resolved "https://registry.yarnpkg.com/@types/nunjucks/-/nunjucks-3.2.6.tgz#6d6e0363719545df8b9a024279902edf68b2caa9"
-  integrity sha512-pHiGtf83na1nCzliuAdq8GowYiXvH5l931xZ0YEHaLMNFgynpEqx+IPStlu7UaDkehfvl01e4x/9Tpwhy7Ue3w==
-
 "@typescript-eslint/eslint-plugin@8.42.0", "@typescript-eslint/eslint-plugin@^8.32.0":
   version "8.42.0"
   resolved "https://registry.yarnpkg.com/@typescript-eslint/eslint-plugin/-/eslint-plugin-8.42.0.tgz#2172d0496c42eee8c7294b6661681100953fa88f"
@@ -696,6 +691,11 @@ combined-stream@^1.0.8:
   integrity sha512-FQN4MRfuJeHf7cBbBMJFXhKSDq+2kAArBlmRBvcvFE5BB1HZKXtSFASDhdlz9zOYwxh8lDdnvmMOe/+5cdoEdg==
   dependencies:
     delayed-stream "~1.0.0"
+
+commander@^10.0.0:
+  version "10.0.1"
+  resolved "https://registry.yarnpkg.com/commander/-/commander-10.0.1.tgz#881ee46b4f77d1c1dccc5823433aa39b022cbe06"
+  integrity sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug==
 
 commander@^5.1.0:
   version "5.1.0"
@@ -1197,6 +1197,13 @@ levn@^0.4.1:
   dependencies:
     prelude-ls "^1.2.1"
     type-check "~0.4.0"
+
+liquidjs@^10.16.5:
+  version "10.21.1"
+  resolved "https://registry.yarnpkg.com/liquidjs/-/liquidjs-10.21.1.tgz#5867dac16f1a74552e1ca5fdc976c0fa4bcdf527"
+  integrity sha512-NZXmCwv3RG5nire3fmIn9HsOyJX3vo+ptp0yaXUHAMzSNBhx74Hm+dAGJvscUA6lNqbLuYfXgNavRQ9UbUJhQQ==
+  dependencies:
+    commander "^10.0.0"
 
 locate-path@^6.0.0:
   version "6.0.0"
