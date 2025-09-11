@@ -117,10 +117,26 @@ describe('validatePrompts', () => {
         expect(res.variablesMissingFromContext).toEqual([])
     })
 
-    it('marks invalid Liquid as isValidLiquidJs=false', () => {
+    it('marks invalid Liquid as isValidLiquidJs=false and reports position', () => {
         const ctx = { user: { name: 'John' } }
         const tpl = '{{ user.name '
         const res = validatePrompts({ prompt: tpl, context: ctx })
         expect(res.isValidLiquidJs).toBe(false)
+        expect(res.parseErrors && res.parseErrors.length).toBe(1)
+        const err = res.parseErrors![0]
+        expect(err.row).toBe(1)
+        expect(err.col).toBeGreaterThan(0)
+        expect(err.line?.includes('user.name')).toBe(true)
+    })
+
+    it('reports correct row for multiline parse error', () => {
+        const ctx = {}
+        const tpl = 'Hello\n{{ user.name'
+        const res = validatePrompts({ prompt: tpl, context: ctx })
+        expect(res.isValidLiquidJs).toBe(false)
+        expect(res.parseErrors && res.parseErrors.length).toBe(1)
+        const err = res.parseErrors![0]
+        expect(err.row).toBe(2)
+        expect(err.col).toBeGreaterThan(0)
     })
 })

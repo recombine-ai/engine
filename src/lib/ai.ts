@@ -747,7 +747,8 @@ export function validatePrompts(options: {prompt: string, context: Record<string
     unusedVariablesFromContext: string[],
     variablesMissingFromContext: string[],
     mistypedVariables: {variable: string, expectedType: string, actualType: string}[],
-    isValidLiquidJs: boolean
+    isValidLiquidJs: boolean,
+    parseErrors?: { message: string, row: number, col: number, file?: string, line?: string }[]
 }  {
     const { prompt, context } = options
 
@@ -885,6 +886,7 @@ export function validatePrompts(options: {prompt: string, context: Record<string
     }
 
     let isValidLiquidJs = true
+    const parseErrors: { message: string, row: number, col: number, file?: string, line?: string }[] = []
     let variableSegments: Array<Array<string | number | string[]>> = []
     try {
         // Parse once to validate Liquid syntax and to get a Template for analysis
@@ -898,9 +900,35 @@ export function validatePrompts(options: {prompt: string, context: Record<string
         } else {
             variableSegments = []
         }
-    } catch {
-        // If parsing fails, mark invalid; still return a structured result
+    } catch (e: any) {
+        // If parsing fails, mark invalid and extract error position if available
         isValidLiquidJs = false
+        const err: any = e
+        const token = err?.token
+        let row = 1
+        let col = 1
+        let file: string | undefined = token?.file
+        let line: string | undefined
+        try {
+            if (token && typeof token.getPosition === 'function') {
+                const pos = token.getPosition()
+                row = Array.isArray(pos) ? (pos[0] as number) : 1
+                col = Array.isArray(pos) ? (pos[1] as number) : 1
+            }
+            const input: string | undefined = token?.input ?? prompt
+            if (typeof input === 'string') {
+                const lines = input.split('\n')
+                if (row >= 1 && row <= lines.length) {
+                    line = lines[row - 1]
+                } else {
+                    // fallback to first line
+                    line = lines[0]
+                }
+            }
+        } catch {
+            // ignore extraction issues, keep defaults
+        }
+        parseErrors.push({ message: String(err?.message || 'Liquid parse error'), row, col, file, line })
     }
 
     // Gather used, missing and mistyped variables by resolving each referenced path
@@ -931,5 +959,6 @@ export function validatePrompts(options: {prompt: string, context: Record<string
         variablesMissingFromContext: Array.from(missingVarsSet),
         mistypedVariables: mistyped,
         isValidLiquidJs,
+        parseErrors: parseErrors.length ? parseErrors : undefined,
     }
 }
