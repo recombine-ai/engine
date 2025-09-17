@@ -1,11 +1,11 @@
 import { ZodSchema } from 'zod'
-import { Logger } from '../interfaces'
+import { PromptFile } from '../prompt-fs'
 
 export type StepTrace = {
     name: string
     renderedPrompt?: string
     receivedContext?: Record<string, unknown>
-    receivedPrompt?: string | File
+    receivedPrompt?: string | PromptFile
     stringifiedConversation?: string
     schema?: ZodSchema
     model?: string
