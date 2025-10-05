@@ -18,7 +18,9 @@ import { zodToJsonSchema } from 'zod-to-json-schema'
 export type BasicModel =
     | 'o3-mini-2025-01-31'
     | 'o1-preview-2024-09-12'
+    | 'gpt-4o-2024-08-06'
     | 'gpt-4o-2024-11-20'
+    | 'gpt-4.1-2025-04-14'
     | 'o1-2024-12-17'
     | (string & {}) // prevents compiler from simplifying the type to just `string`
 
