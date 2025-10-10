@@ -4,7 +4,7 @@ import { PromptFile } from '../prompt-fs'
 export type StepTrace = {
     name: string
     renderedPrompt?: string
-    receivedContext?: Record<string, unknown>
+    receivedContext?: unknown
     receivedPrompt?: string | PromptFile
     stringifiedConversation?: string
     schema?: ZodSchema
