@@ -1,0 +1,5 @@
+# Build and typecheck
+pnpm -s build || {
+  echo "Build failed — aborting push."
+  exit 1
+}

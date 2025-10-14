@@ -456,33 +456,55 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         const workflow: Workflow<CTX> = {
             terminate,
             run: async (messages: Conversation, ctx: any) => {
-                logger.debug('AI Engine: run workflow');
-                logger.debug('AI Engine conv prop reply: ' + messages.getProposedReply());
-                const random = Math.random().toString(36).substring(2, 8);
+                logger.debug('AI Engine: run workflow')
+                logger.debug('AI Engine conv prop reply: ' + messages.getProposedReply())
+                const random = Math.random().toString(36).substring(2, 8)
                 for (; currentStep < steps.length; currentStep++) {
-                    logger.debug(random + ' ' + 'AI Engine conv prop reply at the start of the loop iteration: ' + messages.getProposedReply());
+                    logger.debug(
+                        random +
+                            ' ' +
+                            'AI Engine conv prop reply at the start of the loop iteration: ' +
+                            messages.getProposedReply(),
+                    )
                     await beforeEachCallback()
-                    logger.debug(random + ' ' + 'AI Engine conv prop reply after beforeEachCallback: ' + messages.getProposedReply());
+                    logger.debug(
+                        random +
+                            ' ' +
+                            'AI Engine conv prop reply after beforeEachCallback: ' +
+                            messages.getProposedReply(),
+                    )
                     const step = steps[currentStep]
-                    logger.debug(random + ' ' + 'AI Engine step: ' + step.name);
+                    logger.debug(random + ' ' + 'AI Engine step: ' + step.name)
                     if (!shouldRun) {
                         logger.debug('AI Engine: run terminated')
                         break
                     }
-                    logger.debug('AI Engine conv prop reply passed to runif: ' + messages.getProposedReply());
+                    logger.debug(
+                        'AI Engine conv prop reply passed to runif: ' + messages.getProposedReply(),
+                    )
                     if (!step.runIf || (await step.runIf(messages, ctx))) {
                         const action = makeAction(cfg.sendAction, 'AI', step.name)
                         await action('started')
                         logger.debug(`AI Engine: Step: ${step.name}`)
                         if ('prompt' in step) {
-                            logger.debug(random + ' ' + 'AI Engine conv prop reply passed to runStep: ' + messages.getProposedReply());
+                            logger.debug(
+                                random +
+                                    ' ' +
+                                    'AI Engine conv prop reply passed to runStep: ' +
+                                    messages.getProposedReply(),
+                            )
                             await runStep(step, messages, ctx, onError)
                         } else {
                             await runProgrammaticStep(step, messages, ctx)
                         }
                         await action('completed')
                     }
-                    logger.debug(random + ' ' + 'AI Engine conv prop reply at the end of the loop iteration: ' + messages.getProposedReply());
+                    logger.debug(
+                        random +
+                            ' ' +
+                            'AI Engine conv prop reply at the end of the loop iteration: ' +
+                            messages.getProposedReply(),
+                    )
                 }
                 currentStep = 0
                 return shouldRun ? messages.getProposedReply() : null
@@ -541,11 +563,13 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 prompt = renderPrompt(prompt, ctx)
 
                 stepTrace.renderedPrompt = prompt
-                logger.debug('AI Engine conv prop reply in runStep: ' + conversation.getProposedReply());
+                logger.debug(
+                    'AI Engine conv prop reply in runStep: ' + conversation.getProposedReply(),
+                )
                 const stringifiedMessages = conversation.toString({
                     ignoreAddedMessages: step.ignoreAddedMessages,
                 })
-                logger.debug('AI Engine stringified: ' + stringifiedMessages);
+                logger.debug('AI Engine stringified: ' + stringifiedMessages)
                 stepTrace.stringifiedConversation = stringifiedMessages
                 stepTracer?.addStepTrace(stepTrace)
                 if ('schema' in step) {

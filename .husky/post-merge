@@ -1,0 +1,11 @@
+# If package.json changed, install dependencies
+if git diff --name-only HEAD@{1} HEAD | grep -E '(^package.json$|^pnpm-lock.yaml$)'; then
+  echo "package.json changed — running pnpm install"
+  pnpm install
+fi
+
+# If terraform files changed, re-init terraform (no backend)
+if git diff --name-only HEAD@{1} HEAD | grep -E 'iac/terraform/.*'; then
+  echo "Terraform files changed — running terraform init (local)"
+  (cd iac/terraform && terraform init -backend=false -input=false) || true
+fi
