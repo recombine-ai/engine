@@ -10,12 +10,14 @@
     "scripts": {
         "dev": "tsc -w",
         "build": "tsc",
+        "typecheck": "tsc --noEmit",
         "prepublishOnly": "npm run build",
         "test": "vitest",
         "docs": "cd docusaurus && yarn build --out-dir ../docs && cd ..",
         "lint": "eslint",
         "lint:fix": "eslint --fix",
         "format": "prettier --write .",
+        "format:check": "prettier --check .",
         "prepare": "husky"
     },
     "devDependencies": {
@@ -43,8 +45,7 @@
     "lint-staged": {
         "*.{ts,tsx,js,jsx,json,md}": [
             "pnpm format",
-            "pnpm lint:fix",
-            "git add"
+            "pnpm lint:fix"
         ]
     }
 }
