@@ -23,7 +23,7 @@ jobs:
               run: yarn install --frozen-lockfile
 
             - name: Run lint
-              run: yarn -s lint
+              run: yarn -s lint --quiet
 
             - name: Run formatter check
               run: yarn -s format:check

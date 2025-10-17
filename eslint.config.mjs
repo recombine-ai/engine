@@ -39,6 +39,8 @@ export default tseslint.config(
             'vitest.config.ts',
             'deploy/cdk.out/**',
             'drafts/**',
+            'build/**',
+            '**/*.spec.ts',
         ],
     },
     {
