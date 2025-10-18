@@ -1,5 +1,5 @@
 // cspell:words lstripBlocks
-import OpenAI from 'openai'
+import { OpenAI } from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import nunjucks from 'nunjucks'
 import { ZodSchema, ZodTypeAny, z } from 'zod'
@@ -24,24 +24,29 @@ export type BasicModel =
     | 'o1-2024-12-17'
     | (string & {}) // prevents compiler from simplifying the type to just `string`
 
-export interface ProgrammaticStep<CTX> {
-    /** Step name for debugging */
+export interface BasicStep<CTX> {
+    /** Step name  */
     name: string
 
     /** Determines if the step should be run or not */
     runIf?: (messages: Conversation, ctx: CTX) => boolean | Promise<boolean>
 
-    /** Content of the step */
-    execute: (messages: Conversation, ctx: CTX, workflow: WorkflowControls) => Promise<unknown>
+    /**
+     * When provided, throws an error if the step is invoked more times than `maxAttempts`.
+     * Number of attempts taken is reset when the flow passed the step that was rewinding.
+     */
+    maxAttempts?: number
 
     /** Error handler called if an error occurred during in `execute` function */
     onError?: (error: string, ctx: CTX) => Promise<unknown>
 }
 
-export interface LLMStep<CTX> {
-    /** Step name for debugging */
-    name: string
+export interface ProgrammaticStep<CTX> extends BasicStep<CTX> {
+    /** Content of the step */
+    execute: (messages: Conversation, ctx: CTX, workflow: WorkflowControls) => Promise<unknown>
+}
 
+export interface LLMStep<CTX> extends BasicStep<CTX> {
     /** Determines if the step should be run or not */
     runIf?: (messages: Conversation, ctx: CTX) => boolean | Promise<boolean>
 
@@ -58,16 +63,6 @@ export interface LLMStep<CTX> {
      * Do not put messages that were added via {@link Conversation.addMessage} into the prompt.
      */
     ignoreAddedMessages?: boolean
-
-    /**
-     * When provided, throws an error if the step is invoked more times than `maxAttempts`.
-     * Number of attempts taken is reset when `shouldExecute` returns `false`. Useful to limit
-     * rewinds by reviewers. NOTE that it doesn't work on steps without `shouldExecute` method.
-     */
-    maxAttempts?: number
-
-    /** Error handler called if an error occurred during LLM API call or in `execute` function */
-    onError?: (error: string, ctx: CTX) => Promise<unknown>
 }
 
 export interface WorkflowControls {
@@ -111,13 +106,6 @@ export interface JsonLLMStep<CTX, Schema extends ZodTypeAny> extends LLMStep<CTX
         ctx: CTX,
         workflowControls?: WorkflowControls,
     ) => Promise<unknown>
-
-    /**
-     * Check a condition, whether the `execute` function should run or not
-     * @deprecated use `runIf` to check if the step should be run, use if in `execute` to check
-     * if it should be executed
-     **/
-    shouldExecute?: (reply: Schema, ctx: CTX) => boolean | Promise<boolean>
 }
 
 export interface StringLLMStep<CTX> extends LLMStep<CTX> {
@@ -142,13 +130,6 @@ export interface StringLLMStep<CTX> extends LLMStep<CTX> {
         ctx: CTX,
         workflowControls?: WorkflowControls,
     ) => Promise<unknown>
-
-    /**
-     * Check a condition, whether the `execute` function should run or not
-     * @deprecated use `runIf` to check if the step should be run, use if in `execute` to check
-     * if it should be executed
-     **/
-    shouldExecute?: (reply: string, ctx: CTX) => boolean | Promise<boolean>
 }
 
 /**
@@ -404,7 +385,6 @@ export interface EngineConfig {
  * ```ts
  * const engine = createAIEngine({
  *   logger: customLogger,
- *   basePath: '/path/to/prompts'
  * });
  *
  * const workflow = await engine.createWorkflow(
@@ -437,9 +417,10 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         steps = [],
         beforeEachCallback,
     }: WorkflowConfig<CTX>): Workflow<CTX> {
+        steps.forEach(addStepToTracer)
         return {
             run: async (messages: Conversation, ctx: any) => {
-                const state = new WorkflowState<CTX>(logger, steps);
+                const state = new WorkflowState<CTX>(logger, steps)
                 do {
                     await beforeEachCallback?.()
                     const step = state.getStep()
@@ -466,23 +447,27 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 beforeEachCallback = callback
             },
             addStep(step: StringLLMStep<CTX> | JsonLLMStep<CTX, any> | ProgrammaticStep<CTX>) {
-                if ('prompt' in step) {
-                    tracer.addStep({
-                        name: step.name,
-                        prompt: stdPrompt(step.prompt),
-                        type: 'text',
-                        schema: 'schema' in step ? step.schema : undefined,
-                    })
-                }
+                addStepToTracer(step)
                 steps.push(step)
             },
+        }
+
+        function addStepToTracer(step: WorkflowStep<CTX>) {
+            if ('prompt' in step) {
+                tracer.addStep({
+                    name: step.name,
+                    prompt: stdPrompt(step.prompt),
+                    type: 'text',
+                    schema: 'schema' in step ? step.schema : undefined,
+                })
+            }
         }
 
         async function runStep(
             step: StringLLMStep<CTX> | JsonLLMStep<CTX, any>,
             conversation: Conversation,
             ctx: CTX,
-            state: WorkflowState<CTX>
+            state: WorkflowState<CTX>,
         ): Promise<void> {
             if (!apiKey) {
                 apiKey = await tokenStorage.getToken()
@@ -541,20 +526,8 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 if (!response) {
                     throw new Error('No response from OpenAI')
                 }
-                logger.debug(`AI Engine: response:`, response)
-                if (typeof step.shouldExecute === 'function') {
-                    if (await step.shouldExecute(response, ctx)) {
-                        logger.debug(`AI Engine: executing`)
-                        // checkAttempts(step)
-                        await step.execute(response, conversation, ctx, state)
-                    } else {
-                        // resetAttempts(step)
-                        logger.debug(`AI Engine: skipping`)
-                    }
-                } else {
-                    logger.debug(`AI Engine: replying`)
-                    await step.execute(response, conversation, ctx, state)
-                }
+                logger.debug(`AI Engine: executing ${step.name}, LLM response`, response)
+                await step.execute(response, conversation, ctx, state)
             } catch (error) {
                 await (step.onError
                     ? step.onError((error as Error).message, ctx)
@@ -569,14 +542,14 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
             step: ProgrammaticStep<CTX>,
             messages: Conversation,
             ctx: CTX,
-            state: WorkflowState<CTX>
+            state: WorkflowState<CTX>,
         ) {
             try {
                 if (!step.runIf || (await step.runIf(messages, ctx))) {
                     await step.execute(messages, ctx, state)
                 }
             } catch (error) {
-                console.error(
+                logger.error(
                     `AI Engine: error in dumb step ${step.name}: ${(error as Error).message}`,
                 )
                 await (step.onError
@@ -585,21 +558,6 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 state.terminate()
             }
         }
-
-        // function checkAttempts(step: LLMStep<any>) {
-        //     if (step.maxAttempts) {
-        //         if (!attempts.has(step)) {
-        //             attempts.set(step, 0)
-        //         }
-        //         attempts.set(step, attempts.get(step)! + 1)
-        //         if (attempts.get(step)! > step.maxAttempts) {
-        //             throw new Error(`Max attempts reached for step ${step.name}`)
-        //         }
-        //     }
-        // }
-        // function resetAttempts(step: LLMStep<any>) {
-        //     attempts.set(step, 0)
-        // }
     }
 
     async function runLLM(
@@ -650,11 +608,17 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
 class WorkflowState<CTX> {
     private shouldRun = true
     private currentStep = 0
-    private attempts = new Map<string, number>()
-    constructor(private logger: Logger, private steps: WorkflowStep<CTX>[]){}
+    /** map, step index to number of attempts */
+    private attempts = new Map<number, number>()
+    private rewinder = 0
+    private lastRewindTo = 0
+
+    constructor(
+        private logger: Logger,
+        private steps: WorkflowStep<CTX>[],
+    ) {}
     terminate() {
         this.logger.debug('AI Engine: Terminating conversation...')
-        console.trace('wtf')
         this.shouldRun = false
     }
     isTerminated() {
@@ -665,15 +629,28 @@ class WorkflowState<CTX> {
     }
     next() {
         this.currentStep++
-        return this.getStep() !== null
+        if (this.rewinder < this.currentStep) {
+            this.attempts.delete(this.lastRewindTo)
+        }
+        return this.currentStep < this.steps.length
     }
-    rewindTo(stepName: string){
-        const index = this.steps.findIndex(s => s.name === stepName)
-        if(!index) {
-            const names = this.steps.map(s => s.name).join(', ')
+    rewindTo(stepName: string) {
+        this.rewinder = this.currentStep
+        const index = this.steps.findIndex((s) => s.name === stepName)
+        if (index < 0) {
+            const names = this.steps.map((s) => s.name).join(', ')
             throw new Error(`Tried to rewind to ${stepName}, steps: [${names}]`)
         }
-        this.currentStep = index
+        this.currentStep = index - 1 // -1 because .next() will be called right after
+        this.lastRewindTo = this.currentStep
+
+        const step = this.steps[index]
+        const max = step.maxAttempts || 10
+        const attempt = this.attempts.get(this.currentStep) ?? 1
+        if (attempt >= max) {
+            throw new Error(`Max attempts reached for step ${step.name}`)
+        }
+        this.attempts.set(this.currentStep, attempt + 1)
     }
 }
 
