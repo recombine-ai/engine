@@ -132,6 +132,12 @@ export interface StringLLMStep<CTX> extends LLMStep<CTX> {
     ) => Promise<unknown>
 }
 
+type BeforeEachStep<CTX> = (
+    conversation: Conversation,
+    ctx: CTX,
+    workflowControls?: WorkflowControls,
+) => Promise<void>
+
 /**
  * An AI workflow composed of steps.
  */
@@ -139,16 +145,16 @@ export interface Workflow<CTX> {
     /**
      * Runs the workflow with a given conversation context.
      * Executes steps sequentially until completion or termination.
-     * @param messages - The conversation context for the workflow
+     * @param conversation - The conversation context for the workflow
+     * @param context – Context that will be passed to all steps and to all prompts in those steps
+     * @param beforeEach – A callback, that runs before each step
      * @returns The proposed reply if workflow completes, or null if terminated
      */
-    run: (messages: Conversation, ctx?: CTX) => Promise<string | null>
-
-    /**
-     * Registers a callback to be executed before each step.
-     * @param callback - Async function to execute before each step
-     */
-    beforeEach: (callback: () => Promise<unknown>) => void
+    run: (
+        conversation: Conversation,
+        context?: CTX,
+        beforeEach?: BeforeEachStep<CTX>,
+    ) => Promise<string | null>
 
     /**
      * Add a step to workflow
@@ -415,14 +421,13 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     function createWorkflow<CTX extends object>({
         onError,
         steps = [],
-        beforeEachCallback,
     }: WorkflowConfig<CTX>): Workflow<CTX> {
         steps.forEach(addStepToTracer)
         return {
-            run: async (messages: Conversation, ctx: any) => {
+            run: async (messages: Conversation, ctx: any, beforeEach?: BeforeEachStep<CTX>) => {
                 const state = new WorkflowState<CTX>(logger, steps)
                 do {
-                    await beforeEachCallback?.()
+                    await beforeEach?.(messages, ctx, state)
                     const step = state.getStep()
                     if (state.isTerminated()) {
                         logger.debug('AI Engine: run terminated')
@@ -443,9 +448,6 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 return state.isTerminated() ? null : messages.getProposedReply()
             },
 
-            beforeEach(callback: () => Promise<unknown>) {
-                beforeEachCallback = callback
-            },
             addStep(step: StringLLMStep<CTX> | JsonLLMStep<CTX, any> | ProgrammaticStep<CTX>) {
                 addStepToTracer(step)
                 steps.push(step)

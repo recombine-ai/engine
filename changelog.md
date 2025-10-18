@@ -12,10 +12,10 @@ Breaking changes:
     instead, note that `WorkflowControls.rewindTo()` accept step name, rather then link to a step,
 -   `shouldExecute` property removed from `StringLLMStep` and `JsonLLMStep` interfaces - use
     conditional logic within the `execute` function.
+-   `beforeEach` callback also moved into `Workflow.run` as third parameter
 
 Other changes:
 
--   `WorkflowConfig` now accepts optional `steps` and `beforeEachCallback` properties for workflow initialization,
 -   Added support for additional OpenAI models: `gpt-4o-2024-08-06` and `gpt-4.1-2025-04-14`.
 
 ### 0.7.0 → 0.7.1 (unstable)
