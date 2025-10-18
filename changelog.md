@@ -1,6 +1,24 @@
 # Changelog
 
-### 0.6.0 → 0.7.1 (unstable)
+### 0.7.1 → 0.8.0 (unstable)
+
+Breaking changes:
+
+-   `WorkflowControls` parameter added to step `execute` methods - all `ProgrammaticStep`,
+    `StringLLMStep`, and `JsonLLMStep` execute functions now receive workflow controls as the last
+    parameter,
+-   `Workflow.terminate()` and `Workflow.rewindTo()` methods removed - use
+    `WorkflowControls.terminate()` and `WorkflowControls.rewindTo()` from within step execution
+    instead, note that `WorkflowControls.rewindTo()` accept step name, rather then link to a step,
+-   `shouldExecute` property removed from `StringLLMStep` and `JsonLLMStep` interfaces - use
+    conditional logic within the `execute` function.
+
+Other changes:
+
+-   `WorkflowConfig` now accepts optional `steps` and `beforeEachCallback` properties for workflow initialization,
+-   Added support for additional OpenAI models: `gpt-4o-2024-08-06` and `gpt-4.1-2025-04-14`.
+
+### 0.7.0 → 0.7.1 (unstable)
 
 -   fixed multiple runs on static workflows
 
