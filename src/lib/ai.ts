@@ -104,7 +104,7 @@ export interface JsonLLMStep<CTX, Schema extends ZodTypeAny> extends LLMStep<CTX
         reply: Zod.infer<Schema>,
         conversation: Conversation,
         ctx: CTX,
-        workflowControls?: WorkflowControls,
+        workflowControls: WorkflowControls,
     ) => Promise<unknown>
 }
 
