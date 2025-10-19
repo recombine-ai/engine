@@ -16,6 +16,7 @@ type PathValue<T, P extends any[]> = P extends [infer First, ...infer Rest]
 class Context<T extends Ctx> {
     #listeners = new Set<(context: T) => void>()
     #context: T
+    #promptMapper: (ctx: T) => object = (c) => c
     constructor(context: T) {
         this.#context = context || ({} as T)
     }
@@ -49,6 +50,16 @@ class Context<T extends Ctx> {
     subscribe = (listener: (context: T) => void) => {
         this.#listeners.add(listener)
         return () => this.#listeners.delete(listener)
+    }
+
+    setPromptContextMapper(promptMapper: (ctx: T) => object) {
+        console.log('--- setPromptContextMapper ---')
+        this.#promptMapper = promptMapper
+    }
+
+    getPromptContextMapper() {
+        console.log('--- getPromptContextMapper ---')
+        return this.#promptMapper
     }
 }
 
