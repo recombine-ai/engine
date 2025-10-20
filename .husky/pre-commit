@@ -1,0 +1,2 @@
+# Run lint-staged (this will run format & eslint --fix for staged files)
+yarn -s lint-staged

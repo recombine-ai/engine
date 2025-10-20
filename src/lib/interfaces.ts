@@ -11,6 +11,7 @@ export interface Logger {
  * @param phone – user's phone
  */
 export type ScheduleAction = (delay: Date, phone: string) => Promise<void>
+
 export interface Scheduler {
     /**
      * Register a delayed action handler.

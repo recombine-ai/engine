@@ -1,0 +1,5 @@
+# Build and typecheck
+yarn -s typecheck || {
+  echo "Typecheck failed — aborting push."
+  exit 1
+}
