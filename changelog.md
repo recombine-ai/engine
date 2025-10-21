@@ -1,5 +1,13 @@
 # Changelog
 
+### 0.8.0 → 0.8.1 (unstable)
+
+-   Added prompt context mapping functionality to Context class:
+    -   `setPromptContextMapper(promptMapper: (ctx: T) => object)` - how to map Bosun's context into
+        prompt context
+    -   `getPromptContextMapper()` - retrieves the current prompt context mapper function
+    -   Default mapper returns the context as-is
+
 ### 0.7.1 → 0.8.0 (unstable)
 
 Breaking changes:
