@@ -10,12 +10,15 @@
     "scripts": {
         "dev": "tsc -w",
         "build": "tsc",
+        "typecheck": "tsc --noEmit",
         "prepublishOnly": "npm run build",
         "test": "vitest",
         "docs": "cd docusaurus && yarn build --out-dir ../docs && cd ..",
         "lint": "eslint",
         "lint:fix": "eslint --fix",
-        "format": "prettier --write ."
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "prepare": "husky"
     },
     "devDependencies": {
         "@eslint/js": "^9.26.0",
@@ -23,6 +26,8 @@
         "@types/nunjucks": "^3.2.6",
         "@typescript-eslint/eslint-plugin": "^8.32.0",
         "eslint": "^9.26.0",
+        "husky": "^9.1.7",
+        "lint-staged": "^16.2.4",
         "prettier": "^3.3.3",
         "typescript": "^5.8.3",
         "typescript-eslint": "^8.32.0",
@@ -33,5 +38,14 @@
         "openai": "^4.68.4",
         "zod": "3.23.8",
         "zod-to-json-schema": "^3.24.6"
+    },
+    "husky": {
+        "hooks": {}
+    },
+    "lint-staged": {
+        "*.{ts,tsx,js,jsx,json,md}": [
+            "pnpm format",
+            "pnpm lint:fix"
+        ]
     }
 }

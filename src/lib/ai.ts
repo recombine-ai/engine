@@ -297,7 +297,7 @@ export interface Conversation {
     setAgentName(name: string): void
 
     /**
-     * Sets the default formatter for stringifying messages when toString is called.
+     * Sets the default formatter to stringify messages when toString is called.
      * @param formatter - A function that takes a message and returns a formatted string.
      */
     setDefaultFormatter: (formatter: (message: Message) => string) => void
