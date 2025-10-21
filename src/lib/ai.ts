@@ -1,5 +1,5 @@
 // cspell:words lstripBlocks
-import OpenAI from 'openai'
+import { OpenAI } from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import nunjucks from 'nunjucks'
 import { ZodSchema, ZodTypeAny, z } from 'zod'
@@ -24,24 +24,29 @@ export type BasicModel =
     | 'o1-2024-12-17'
     | (string & {}) // prevents compiler from simplifying the type to just `string`
 
-export interface ProgrammaticStep<CTX> {
-    /** Step name for debugging */
+export interface BasicStep<CTX> {
+    /** Step name  */
     name: string
 
     /** Determines if the step should be run or not */
     runIf?: (messages: Conversation, ctx: CTX) => boolean | Promise<boolean>
 
-    /** Content of the step */
-    execute: (messages: Conversation, ctx: CTX) => Promise<unknown>
+    /**
+     * When provided, throws an error if the step is invoked more times than `maxAttempts`.
+     * Number of attempts taken is reset when the flow passed the step that was rewinding.
+     */
+    maxAttempts?: number
 
     /** Error handler called if an error occurred during in `execute` function */
     onError?: (error: string, ctx: CTX) => Promise<unknown>
 }
 
-export interface LLMStep<CTX> {
-    /** Step name for debugging */
-    name: string
+export interface ProgrammaticStep<CTX> extends BasicStep<CTX> {
+    /** Content of the step */
+    execute: (messages: Conversation, ctx: CTX, workflow: WorkflowControls) => Promise<unknown>
+}
 
+export interface LLMStep<CTX> extends BasicStep<CTX> {
     /** Determines if the step should be run or not */
     runIf?: (messages: Conversation, ctx: CTX) => boolean | Promise<boolean>
 
@@ -58,21 +63,19 @@ export interface LLMStep<CTX> {
      * Do not put messages that were added via {@link Conversation.addMessage} into the prompt.
      */
     ignoreAddedMessages?: boolean
-
-    /**
-     * When provided, throws an error if the step is invoked more times than `maxAttempts`.
-     * Number of attempts taken is reset when `shouldExecute` returns `false`. Useful to limit
-     * rewinds by reviewers. NOTE that it doesn't work on steps without `shouldExecute` method.
-     */
-    maxAttempts?: number
-
-    /** Error handler called if an error occurred during LLM API call or in `execute` function */
-    onError?: (error: string, ctx: CTX) => Promise<unknown>
 }
 
-export interface WorkflowControls<CTX> {
+export interface WorkflowControls {
+    /**
+     * Terminates the workflow, preventing further steps from being executed.
+     */
     terminate: () => void
-    rewindTo: (step: LLMStep<CTX> | ProgrammaticStep<CTX>) => void
+
+    /**
+     * Rewinds the workflow execution to a specific step.
+     * @param step - The name of the step to rewind to
+     */
+    rewindTo: (step: string) => void
 }
 
 export interface JsonLLMStep<CTX, Schema extends ZodTypeAny> extends LLMStep<CTX> {
@@ -101,15 +104,8 @@ export interface JsonLLMStep<CTX, Schema extends ZodTypeAny> extends LLMStep<CTX
         reply: Zod.infer<Schema>,
         conversation: Conversation,
         ctx: CTX,
-        workflowControls?: WorkflowControls<CTX>,
+        workflowControls: WorkflowControls,
     ) => Promise<unknown>
-
-    /**
-     * Check a condition, whether the `execute` function should run or not
-     * @deprecated use `runIf` to check if the step should be run, use if in `execute` to check
-     * if it should be executed
-     **/
-    shouldExecute?: (reply: Schema, ctx: CTX) => boolean | Promise<boolean>
 }
 
 export interface StringLLMStep<CTX> extends LLMStep<CTX> {
@@ -132,45 +128,33 @@ export interface StringLLMStep<CTX> extends LLMStep<CTX> {
         reply: string,
         conversation: Conversation,
         ctx: CTX,
-        workflowControls?: WorkflowControls<CTX>,
+        workflowControls?: WorkflowControls,
     ) => Promise<unknown>
-
-    /**
-     * Check a condition, whether the `execute` function should run or not
-     * @deprecated use `runIf` to check if the step should be run, use if in `execute` to check
-     * if it should be executed
-     **/
-    shouldExecute?: (reply: string, ctx: CTX) => boolean | Promise<boolean>
 }
+
+type BeforeEachStep<CTX> = (
+    conversation: Conversation,
+    ctx: CTX,
+    workflowControls?: WorkflowControls,
+) => Promise<void>
 
 /**
  * An AI workflow composed of steps.
  */
 export interface Workflow<CTX> {
     /**
-     * Terminates the workflow, preventing further steps from being executed.
-     */
-    terminate: () => void
-
-    /**
      * Runs the workflow with a given conversation context.
      * Executes steps sequentially until completion or termination.
-     * @param messages - The conversation context for the workflow
+     * @param conversation - The conversation context for the workflow
+     * @param context – Context that will be passed to all steps and to all prompts in those steps
+     * @param beforeEach – A callback, that runs before each step
      * @returns The proposed reply if workflow completes, or null if terminated
      */
-    run: (messages: Conversation, ctx?: CTX) => Promise<string | null>
-
-    /**
-     * Rewinds the workflow execution to a specific step.
-     * @param step - The step to rewind to
-     */
-    rewindTo: (step: LLMStep<CTX> | ProgrammaticStep<CTX>) => void
-
-    /**
-     * Registers a callback to be executed before each step.
-     * @param callback - Async function to execute before each step
-     */
-    beforeEach: (callback: () => Promise<unknown>) => void
+    run: (
+        conversation: Conversation,
+        context?: CTX,
+        beforeEach?: BeforeEachStep<CTX>,
+    ) => Promise<string | null>
 
     /**
      * Add a step to workflow
@@ -180,8 +164,12 @@ export interface Workflow<CTX> {
     addStep(step: ProgrammaticStep<CTX>): void
 }
 
+type WorkflowStep<CTX> = StringLLMStep<CTX> | JsonLLMStep<CTX, any> | ProgrammaticStep<CTX>
+
 export interface WorkflowConfig<CTX> {
     onError: (error: string, ctx: CTX) => Promise<unknown>
+    steps?: WorkflowStep<CTX>[]
+    beforeEachCallback?: () => Promise<unknown>
 }
 
 interface StepBuilder<CTX> {
@@ -247,7 +235,7 @@ export interface AIEngine {
      * @param config - common parameters for a workflow
      * @returns A Promise that resolves to the created Workflow.
      */
-    createWorkflow: <CTX>(config: WorkflowConfig<CTX>) => Workflow<CTX>
+    createWorkflow: <CTX extends object>(config: WorkflowConfig<CTX>) => Workflow<CTX>
 
     /**
      * Creates a new conversation instance.
@@ -309,7 +297,7 @@ export interface Conversation {
     setAgentName(name: string): void
 
     /**
-     * Sets the default formatter for stringifying messages when toString is called.
+     * Sets the default formatter to stringify messages when toString is called.
      * @param formatter - A function that takes a message and returns a formatted string.
      */
     setDefaultFormatter: (formatter: (message: Message) => string) => void
@@ -403,7 +391,6 @@ export interface EngineConfig {
  * ```ts
  * const engine = createAIEngine({
  *   logger: customLogger,
- *   basePath: '/path/to/prompts'
  * });
  *
  * const workflow = await engine.createWorkflow(
@@ -431,107 +418,58 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         },
     }
 
-    function createWorkflow<CTX>({ onError }: WorkflowConfig<CTX>): Workflow<CTX> {
-        let shouldRun = true
-        let currentStep = 0
-        let beforeEachCallback = async () => Promise.resolve<unknown>(null)
-        const attempts = new Map<LLMStep<any>, number>()
-        const steps: Array<StringLLMStep<CTX> | JsonLLMStep<CTX, any> | ProgrammaticStep<CTX>> = []
-        const terminate = () => {
-            logger.debug('AI Engine: Terminating conversation...')
-            shouldRun = false
-        }
-        const rewindTo = (step: LLMStep<CTX> | ProgrammaticStep<CTX>) => {
-            const index = steps.indexOf(step as any)
-            if (index === -1) {
-                throw new Error(`Step ${step.name} not found`)
-            }
-            if (index > currentStep) {
-                throw new Error(`Cannot rewind to a step ahead of the current step`)
-            }
-            currentStep = index - 1 // -1 because it will be incremented in the loop definition
-        }
-        const workflowControls: WorkflowControls<CTX> = { terminate, rewindTo }
-
-        const workflow: Workflow<CTX> = {
-            terminate,
-            run: async (messages: Conversation, ctx: any) => {
-                logger.debug('AI Engine: run workflow')
-                logger.debug('AI Engine conv prop reply: ' + messages.getProposedReply())
-                const random = Math.random().toString(36).substring(2, 8)
-                for (; currentStep < steps.length; currentStep++) {
-                    logger.debug(
-                        random +
-                            ' ' +
-                            'AI Engine conv prop reply at the start of the loop iteration: ' +
-                            messages.getProposedReply(),
-                    )
-                    await beforeEachCallback()
-                    logger.debug(
-                        random +
-                            ' ' +
-                            'AI Engine conv prop reply after beforeEachCallback: ' +
-                            messages.getProposedReply(),
-                    )
-                    const step = steps[currentStep]
-                    logger.debug(random + ' ' + 'AI Engine step: ' + step.name)
-                    if (!shouldRun) {
+    function createWorkflow<CTX extends object>({
+        onError,
+        steps = [],
+    }: WorkflowConfig<CTX>): Workflow<CTX> {
+        steps.forEach(addStepToTracer)
+        return {
+            run: async (messages: Conversation, ctx: any, beforeEach?: BeforeEachStep<CTX>) => {
+                const state = new WorkflowState<CTX>(logger, steps)
+                do {
+                    await beforeEach?.(messages, ctx, state)
+                    const step = state.getStep()
+                    if (state.isTerminated()) {
                         logger.debug('AI Engine: run terminated')
                         break
                     }
-                    logger.debug(
-                        'AI Engine conv prop reply passed to runif: ' + messages.getProposedReply(),
-                    )
                     if (!step.runIf || (await step.runIf(messages, ctx))) {
                         const action = makeAction(cfg.sendAction, 'AI', step.name)
                         await action('started')
                         logger.debug(`AI Engine: Step: ${step.name}`)
                         if ('prompt' in step) {
-                            logger.debug(
-                                random +
-                                    ' ' +
-                                    'AI Engine conv prop reply passed to runStep: ' +
-                                    messages.getProposedReply(),
-                            )
-                            await runStep(step, messages, ctx, onError)
+                            await runStep(step, messages, ctx, state)
                         } else {
-                            await runProgrammaticStep(step, messages, ctx)
+                            await runProgrammaticStep(step, messages, ctx, state)
                         }
                         await action('completed')
                     }
-                    logger.debug(
-                        random +
-                            ' ' +
-                            'AI Engine conv prop reply at the end of the loop iteration: ' +
-                            messages.getProposedReply(),
-                    )
-                }
-                currentStep = 0
-                return shouldRun ? messages.getProposedReply() : null
+                } while (state.next())
+                return state.isTerminated() ? null : messages.getProposedReply()
             },
-            rewindTo,
 
-            beforeEach(callback: () => Promise<unknown>) {
-                beforeEachCallback = callback
-            },
             addStep(step: StringLLMStep<CTX> | JsonLLMStep<CTX, any> | ProgrammaticStep<CTX>) {
-                if ('prompt' in step) {
-                    tracer.addStep({
-                        name: step.name,
-                        prompt: stdPrompt(step.prompt),
-                        type: 'text',
-                        schema: 'schema' in step ? step.schema : undefined,
-                    })
-                }
+                addStepToTracer(step)
                 steps.push(step)
             },
+        }
+
+        function addStepToTracer(step: WorkflowStep<CTX>) {
+            if ('prompt' in step) {
+                tracer.addStep({
+                    name: step.name,
+                    prompt: stdPrompt(step.prompt),
+                    type: 'text',
+                    schema: 'schema' in step ? step.schema : undefined,
+                })
+            }
         }
 
         async function runStep(
             step: StringLLMStep<CTX> | JsonLLMStep<CTX, any>,
             conversation: Conversation,
-            ctx: any,
-            onError: WorkflowConfig<CTX>['onError'],
+            ctx: CTX,
+            state: WorkflowState<CTX>,
         ): Promise<void> {
             if (!apiKey) {
                 apiKey = await tokenStorage.getToken()
@@ -563,9 +501,6 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 prompt = renderPrompt(prompt, ctx)
 
                 stepTrace.renderedPrompt = prompt
-                logger.debug(
-                    'AI Engine conv prop reply in runStep: ' + conversation.getProposedReply(),
-                )
                 const stringifiedMessages = conversation.toString({
                     ignoreAddedMessages: step.ignoreAddedMessages,
                 })
@@ -593,27 +528,15 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 if (!response) {
                     throw new Error('No response from OpenAI')
                 }
-                logger.debug(`AI Engine: response:`, response)
-                if (typeof step.shouldExecute === 'function') {
-                    if (await step.shouldExecute(response, ctx)) {
-                        logger.debug(`AI Engine: executing`)
-                        checkAttempts(step)
-                        await step.execute(response, conversation, ctx, workflowControls)
-                    } else {
-                        resetAttempts(step)
-                        logger.debug(`AI Engine: skipping`)
-                    }
-                } else {
-                    logger.debug(`AI Engine: replying`)
-                    await step.execute(response, conversation, ctx, workflowControls)
-                }
+                logger.debug(`AI Engine: executing ${step.name}, LLM response`, response)
+                await step.execute(response, conversation, ctx, state)
             } catch (error) {
                 await (step.onError
                     ? step.onError((error as Error).message, ctx)
                     : onError((error as Error).message, ctx))
                 // FIXME: this doesn't terminate the workflow
                 stepTracer?.addStepTrace(stepTrace)
-                shouldRun = false
+                state.terminate()
             }
         }
 
@@ -621,38 +544,22 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
             step: ProgrammaticStep<CTX>,
             messages: Conversation,
             ctx: CTX,
+            state: WorkflowState<CTX>,
         ) {
             try {
                 if (!step.runIf || (await step.runIf(messages, ctx))) {
-                    await step.execute(messages, ctx)
+                    await step.execute(messages, ctx, state)
                 }
             } catch (error) {
-                console.error(
+                logger.error(
                     `AI Engine: error in dumb step ${step.name}: ${(error as Error).message}`,
                 )
                 await (step.onError
                     ? step.onError((error as Error).message, ctx)
                     : onError((error as Error).message, ctx))
-                shouldRun = false
+                state.terminate()
             }
         }
-
-        function checkAttempts(step: LLMStep<any>) {
-            if (step.maxAttempts) {
-                if (!attempts.has(step)) {
-                    attempts.set(step, 0)
-                }
-                attempts.set(step, attempts.get(step)! + 1)
-                if (attempts.get(step)! > step.maxAttempts) {
-                    throw new Error(`Max attempts reached for step ${step.name}`)
-                }
-            }
-        }
-        function resetAttempts(step: LLMStep<any>) {
-            attempts.set(step, 0)
-        }
-
-        return workflow
     }
 
     async function runLLM(
@@ -700,6 +607,55 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     }
 }
 
+class WorkflowState<CTX> {
+    private shouldRun = true
+    private currentStep = 0
+    /** map, step index to number of attempts */
+    private attempts = new Map<number, number>()
+    private rewinder = 0
+    private lastRewindTo = 0
+
+    constructor(
+        private logger: Logger,
+        private steps: WorkflowStep<CTX>[],
+    ) {}
+    terminate() {
+        this.logger.debug('AI Engine: Terminating conversation...')
+        this.shouldRun = false
+    }
+    isTerminated() {
+        return !this.shouldRun
+    }
+    getStep() {
+        return this.steps[this.currentStep] || null
+    }
+    next() {
+        this.currentStep++
+        if (this.rewinder < this.currentStep) {
+            this.attempts.delete(this.lastRewindTo)
+        }
+        return this.currentStep < this.steps.length
+    }
+    rewindTo(stepName: string) {
+        this.rewinder = this.currentStep
+        const index = this.steps.findIndex((s) => s.name === stepName)
+        if (index < 0) {
+            const names = this.steps.map((s) => s.name).join(', ')
+            throw new Error(`Tried to rewind to ${stepName}, steps: [${names}]`)
+        }
+        this.currentStep = index - 1 // -1 because .next() will be called right after
+        this.lastRewindTo = this.currentStep
+
+        const step = this.steps[index]
+        const max = step.maxAttempts || 10
+        const attempt = this.attempts.get(this.currentStep) ?? 1
+        if (attempt >= max) {
+            throw new Error(`Max attempts reached for step ${step.name}`)
+        }
+        this.attempts.set(this.currentStep, attempt + 1)
+    }
+}
+
 function getOpenAiOptions(model: BasicModel, schema?: ZodSchema) {
     const options: Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'> = {
         model,
@@ -728,7 +684,7 @@ function getOpenAiOptions(model: BasicModel, schema?: ZodSchema) {
     return options
 }
 
-function renderPrompt(prompt: string, context?: Record<string, unknown>): string {
+function renderPrompt(prompt: string, context?: object): string {
     nunjucks.configure({
         autoescape: false,
         trimBlocks: true,

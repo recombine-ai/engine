@@ -1,5 +1,22 @@
-import { describe, it, expect } from 'vitest'
-import { AIEngine, createAIEngine } from './ai'
+import { describe, it, expect, vi, Mock } from 'vitest'
+import { createAIEngine } from './ai'
+import { PromptFile } from './prompt-fs'
+import { z } from 'zod'
+
+// Mock OpenAI at the top level
+vi.mock('openai', () => {
+    const mockOpeAi = vi.fn(() => ({
+        chat: {
+            completions: {
+                create: vi.fn(),
+            },
+        },
+    }))
+    return {
+        OpenAI: mockOpeAi,
+        default: mockOpeAi,
+    }
+})
 
 describe('conversationExample', () => {
     it('outputs conversation string ignoring added messages', () => {
@@ -62,3 +79,278 @@ describe('conversationExample', () => {
         expect(outputFull).toBe(expectedFull)
     })
 })
+
+describe('workflow.run', () => {
+    it('runs all steps', async () => {
+        const { ai, step, cnv } = getAi()
+
+        const dumbStep = step({
+            name: 'dumb-step',
+            runIf: vi.fn(() => true),
+            execute: vi.fn(),
+        })
+        const mainPrompt = { content: vi.fn(() => 'hello') } as any as PromptFile
+        const mainStep = step({
+            name: 'main',
+            prompt: mainPrompt,
+            execute: vi.fn(),
+        })
+        const smartStep = step({
+            name: 'smart-step',
+            runIf: vi.fn(() => true),
+            schema: z.object({}),
+            prompt: { content: vi.fn(() => 'hello') } as any as PromptFile,
+            execute: vi.fn(),
+        })
+        const wf = ai.createWorkflow({
+            steps: [dumbStep],
+            onError,
+        })
+        wf.addStep(mainStep)
+        wf.addStep(smartStep)
+
+        const ctx = {}
+        const wfHandle = expect.objectContaining({
+            terminate: expect.any(Function),
+            rewindTo: expect.any(Function),
+        })
+        await wf.run(cnv, ctx)
+        expect(dumbStep.runIf).toBeCalledWith(cnv, ctx)
+        expect(dumbStep.execute).toBeCalledWith(cnv, ctx, wfHandle)
+        expect(mainPrompt.content).toBeCalled()
+        expect(mainStep.execute).toBeCalledWith(expect.any(String), cnv, ctx, wfHandle)
+        expect(smartStep.runIf).toBeCalled()
+        expect(smartStep.execute).toBeCalledWith(expect.any(Object), cnv, ctx, wfHandle)
+    })
+
+    it('executes smart steps with parsed response', async () => {
+        const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
+        OpenAI.mockReturnValue({
+            chat: {
+                completions: {
+                    create: vi.fn(() => ({
+                        choices: [
+                            {
+                                message: {
+                                    content: JSON.stringify({ name: 'John', age: 30 }),
+                                },
+                            },
+                        ],
+                    })),
+                },
+            },
+        })
+        const ai = createAIEngine({
+            logger: { ...console, debug: noop, error: noop },
+            tokenStorage: { getToken: () => Promise.resolve('any') },
+        })
+        const step = ai.getStepBuilder()
+        const cnv = ai.createConversation([])
+
+        const testSchema = z.object({
+            name: z.string(),
+            age: z.number(),
+        })
+
+        const smartStep = step({
+            name: 'smart-step',
+            schema: testSchema,
+            prompt: 'Get user info',
+            execute: vi.fn(),
+        })
+
+        const wf = ai.createWorkflow({
+            steps: [smartStep],
+            onError,
+        })
+
+        await wf.run(cnv, {})
+
+        expect(smartStep.execute).toBeCalledWith(
+            { name: 'John', age: 30 },
+            cnv,
+            {},
+            expect.any(Object),
+        )
+    })
+
+    describe('workflow handle', () => {
+        it('terminates the workflow', async () => {
+            const { ai, step, cnv } = getAi()
+            const firstStep = step({
+                name: 'first-step',
+                runIf: () => true,
+                execute: async (_, __, wfHandle) => {
+                    wfHandle.terminate()
+                },
+            })
+
+            const secondStep = step({
+                name: 'second-step',
+                runIf: () => true,
+                execute: vi.fn(),
+            })
+
+            const wf = ai.createWorkflow({
+                steps: [firstStep, secondStep],
+                onError,
+            })
+            await wf.run(cnv)
+
+            expect(secondStep.execute).not.toHaveBeenCalled()
+        })
+        it('rewinds to the specified step', async () => {
+            const { ai, step, cnv } = getAi()
+
+            let secondStepCalled = false
+
+            const firstStep = step({
+                name: 'first-step',
+                runIf: () => true,
+                execute: vi.fn(),
+            })
+
+            const secondStep = step({
+                name: 'second-step',
+                runIf: () => !secondStepCalled,
+                execute: async (_, __, wfHandle) => {
+                    secondStepCalled = true
+                    wfHandle.rewindTo('first-step')
+                },
+            })
+
+            const wf = ai.createWorkflow({
+                steps: [firstStep, secondStep],
+                onError,
+            })
+
+            await wf.run(cnv, {})
+
+            expect(firstStep.execute).toBeCalledTimes(2)
+        })
+        it('rewinds up to maxAttempts', async () => {
+            const { ai, step, cnv } = getAi()
+            const mockOnError = vi.fn()
+
+            const firstStep = step({
+                name: 'first-step',
+                runIf: () => true,
+                maxAttempts: 3,
+                execute: vi.fn(),
+            })
+
+            const secondStep = step({
+                name: 'second-step',
+                runIf: () => true,
+                execute: async (_, __, wfHandle) => {
+                    wfHandle.rewindTo('first-step')
+                },
+            })
+
+            const wf = ai.createWorkflow({
+                steps: [firstStep, secondStep],
+                onError: mockOnError,
+            })
+
+            await wf.run(cnv, {})
+
+            expect(firstStep.execute).toBeCalledTimes(3)
+            expect(mockOnError).toHaveBeenCalledOnce()
+        })
+        it('resets the counter when passed to the next step', async () => {
+            const { ai, step, cnv } = getAi()
+            const mockOnError = vi.fn()
+
+            const firstStep = step({
+                name: 'first-step',
+                runIf: () => true,
+                maxAttempts: 3,
+                execute: vi.fn(),
+            })
+
+            let counter = 0
+            const secondStep = step({
+                name: 'second-step',
+                runIf: () => true,
+                execute: async (_, __, wfHandle) => {
+                    if (counter < 2) {
+                        wfHandle.rewindTo('first-step')
+                    }
+                    counter++
+                },
+            })
+
+            const thirdStep = step({
+                name: 'third-step',
+                runIf: () => true,
+                execute: async (_, __, wfHandle) => {
+                    wfHandle.rewindTo('first-step')
+                },
+            })
+
+            const wf = ai.createWorkflow({
+                steps: [firstStep, secondStep, thirdStep],
+                onError: mockOnError,
+            })
+
+            await wf.run(cnv, {})
+
+            expect(firstStep.execute).toBeCalledTimes(5)
+            expect(mockOnError).toHaveBeenCalledOnce()
+        })
+    })
+
+    describe('tracer', () => {
+        it('adds all steps', async () => {
+            const tracer = { addStep: vi.fn() }
+            const { ai, step } = getAi(tracer)
+
+            const firstStep = step({
+                name: 'first-step',
+                prompt: '',
+                runIf: () => true,
+                execute: vi.fn(),
+            })
+
+            const secondStep = step({
+                name: 'second-step',
+                prompt: '',
+                runIf: () => true,
+                execute: vi.fn(),
+            })
+
+            const thirdStep = step({
+                name: 'third-step',
+                prompt: '',
+                runIf: () => true,
+                execute: vi.fn(),
+            })
+
+            const wf = ai.createWorkflow({
+                steps: [firstStep, secondStep],
+                onError: noopA,
+            })
+            wf.addStep(thirdStep)
+
+            expect(tracer.addStep).toBeCalledTimes(3)
+        })
+    })
+})
+
+function getAi(tracer = { addStep: noop }) {
+    const ai = createAIEngine({
+        tracer,
+        logger: { ...console, debug: noop, error: noop },
+        tokenStorage: { getToken: () => Promise.resolve('__TESTING__') },
+    })
+    const step = ai.getStepBuilder()
+    const cnv = ai.createConversation([])
+    return { ai, step, cnv }
+}
+
+const noop = () => {}
+const noopA = () => Promise.resolve()
+async function onError(err: any) {
+    console.trace(err)
+    throw err
+}
