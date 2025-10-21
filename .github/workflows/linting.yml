@@ -30,3 +30,6 @@ jobs:
 
             - name: Run typecheck
               run: yarn -s typecheck
+
+            - name: Run tests
+              run: yarn test
