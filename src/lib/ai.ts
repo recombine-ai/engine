@@ -1,4 +1,6 @@
 // cspell:words lstripBlocks
+import { randomUUID } from 'crypto'
+import { OpenAI } from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import nunjucks from 'nunjucks'
 import { ZodSchema, ZodTypeAny } from 'zod'
@@ -178,6 +180,7 @@ type WorkflowStep<CTX> = StringLLMStep<CTX> | JsonLLMStep<CTX, any> | Programmat
 export interface WorkflowConfig<CTX> {
     onError: (error: string, ctx: CTX) => Promise<unknown>
     steps?: WorkflowStep<CTX>[]
+    workflowId?: string
     beforeEachCallback?: () => Promise<unknown>
 }
 
@@ -423,6 +426,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     function createWorkflow<CTX extends object>({
         onError,
         steps = [],
+        workflowId = 'workflow',
     }: WorkflowConfig<CTX>): Workflow<CTX> {
         steps.forEach(addStepToTracer)
         return {
@@ -447,6 +451,8 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                         await action('completed')
                     }
                 } while (state.next())
+
+                await stepTracer?.flush()
                 return state.isTerminated() ? null : messages.getProposedReply()
             },
 
@@ -475,6 +481,8 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         ): Promise<void> {
             const stepTrace: StepTrace = {
                 name: step.name,
+                workflowId,
+                workflowRunId: state.workflowRunId,
                 model:
                     typeof step.model === 'string'
                         ? step.model
@@ -488,6 +496,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                             : undefined
                         : undefined,
             }
+
             try {
                 stepTrace.receivedContext = ctx
                 let response: string | null = null
@@ -597,11 +606,14 @@ class WorkflowState<CTX> {
     private attempts = new Map<number, number>()
     private rewinder = 0
     private lastRewindTo = 0
+    public workflowRunId: string
 
     constructor(
         private logger: Logger,
         private steps: WorkflowStep<CTX>[],
-    ) {}
+    ) {
+        this.workflowRunId = randomUUID()
+    }
     terminate() {
         this.logger.debug('AI Engine: Terminating conversation...')
         this.shouldRun = false

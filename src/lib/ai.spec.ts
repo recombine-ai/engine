@@ -492,6 +492,105 @@ describe('workflow.run', () => {
             expect(tracer.addStep).toBeCalledTimes(3)
         })
     })
+
+    describe('stepTracer integration', () => {
+        function makeStepTracer() {
+            return {
+                addStepTrace: vi.fn(),
+                flush: vi.fn(() => Promise.resolve()),
+                createStepTrace: vi.fn((trace: any) => ({ ...trace })),
+            }
+        }
+        function makeAi(stepTracer: ReturnType<typeof makeStepTracer>) {
+            return createAIEngine({
+                logger: { ...console, debug: vi.fn(), error: vi.fn() },
+                tokenStorage: { getToken: () => Promise.resolve('__TESTING__') },
+                stepTracer,
+            })
+        }
+        it('records a basic string LLM step trace before execution and flushes after run', async () => {
+            const stepTracer = makeStepTracer()
+            const engine = makeAi(stepTracer)
+            const step = engine.getStepBuilder()({
+                name: 'hello-step',
+                prompt: 'Say hello',
+                execute: vi.fn(),
+            })
+            const wf = engine.createWorkflow({
+                steps: [step],
+                onError: async () => {},
+                workflowId: 'wf-1',
+            })
+            const conversation = engine.createConversation([])
+            await wf.run(conversation, { foo: 'bar' })
+
+            expect(stepTracer.addStepTrace).toHaveBeenCalledTimes(1)
+            const trace = stepTracer.addStepTrace.mock.calls[0][0]
+            expect(trace.name).toBe('hello-step')
+            expect(trace.workflowId).toBe('wf-1')
+            expect(trace.renderedPrompt).toBeDefined()
+            expect(trace.receivedPrompt).toBe('Say hello')
+            expect(trace.stringifiedConversation).toBeDefined()
+            expect(stepTracer.flush).toHaveBeenCalledTimes(1)
+        })
+        it('includes schema in trace for JSON steps and parses response', async () => {
+            const stepTracer = makeStepTracer()
+            const engine = makeAi(stepTracer)
+            const schema = z.object({ message: z.string(), reasons: z.array(z.string()) })
+            const jsonStep = engine.getStepBuilder()({
+                name: 'json-step',
+                prompt: 'Give json',
+                schema,
+                execute: vi.fn(),
+            })
+            const wf = engine.createWorkflow({ steps: [jsonStep], onError: async () => {} })
+            const conversation = engine.createConversation([])
+            await wf.run(conversation, {})
+
+            expect(stepTracer.addStepTrace).toHaveBeenCalledTimes(1)
+            const trace = stepTracer.addStepTrace.mock.calls[0][0]
+            expect(trace.schema).toBe(schema)
+            expect(jsonStep.execute).toHaveBeenCalledWith(
+                { message: 'canned response', reasons: [] },
+                conversation,
+                {},
+                expect.any(Object),
+            )
+        })
+        it('adds second trace on error path and terminates', async () => {
+            const stepTracer = makeStepTracer()
+            const engine = makeAi(stepTracer)
+            const failingStep = engine.getStepBuilder()({
+                name: 'fail-step',
+                prompt: 'Cause an error',
+                execute: vi.fn(() => {
+                    throw new Error('boom')
+                }),
+                onError: vi.fn(),
+            })
+            const wf = engine.createWorkflow({ steps: [failingStep], onError: async () => {} })
+            const conversation = engine.createConversation([])
+            const result = await wf.run(conversation, {})
+
+            expect(stepTracer.addStepTrace).toHaveBeenCalledTimes(2)
+            expect(failingStep.onError).toHaveBeenCalled()
+            expect(result).toBeNull()
+        })
+        it('does not trace programmatic steps (no prompt property)', async () => {
+            const stepTracer = makeStepTracer()
+            const engine = makeAi(stepTracer)
+            const programmatic = engine.getStepBuilder()({
+                name: 'prog-step',
+                execute: vi.fn(),
+            })
+            const wf = engine.createWorkflow({ steps: [programmatic], onError: async () => {} })
+            const conversation = engine.createConversation([])
+            await wf.run(conversation, {})
+
+            expect(stepTracer.addStepTrace).not.toHaveBeenCalled()
+            expect(stepTracer.flush).toHaveBeenCalledTimes(1)
+        })
+    })
 })
 
 function getAi(tracer = { addStep: noop }) {
