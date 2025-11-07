@@ -33,17 +33,6 @@ export type StepTrace = {
 
 export interface StepTracer {
     /**
-     * Create step trace and add it to the tracer
-     * @param name - name of the step
-     * @param workflowId - ID of the workflow
-     * @param traceId - ID of the trace
-     * @param workflowRunId - ID of the workflow run
-     */
-    createStepTrace(
-        step: Partial<StepTrace> & Pick<StepTrace, 'name' | 'workflowId' | 'workflowRunId'>,
-    ): StepTrace
-
-    /**
      * Add a step trace
      * @param trace The step trace to add
      */

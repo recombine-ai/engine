@@ -498,7 +498,6 @@ describe('workflow.run', () => {
             return {
                 addStepTrace: vi.fn(),
                 flush: vi.fn(() => Promise.resolve()),
-                createStepTrace: vi.fn((trace: any) => ({ ...trace })),
             }
         }
         function makeAi(stepTracer: ReturnType<typeof makeStepTracer>) {
@@ -528,6 +527,9 @@ describe('workflow.run', () => {
             const trace = stepTracer.addStepTrace.mock.calls[0][0]
             expect(trace.name).toBe('hello-step')
             expect(trace.workflowId).toBe('wf-1')
+            expect(trace.workflowRunId).toMatch(
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+            )
             expect(trace.renderedPrompt).toBeDefined()
             expect(trace.receivedPrompt).toBe('Say hello')
             expect(trace.stringifiedConversation).toBeDefined()
