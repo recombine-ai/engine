@@ -44,8 +44,8 @@
     },
     "lint-staged": {
         "*.{ts,tsx,js,jsx,json,md}": [
-            "pnpm format",
-            "pnpm lint:fix"
+            "npm run format",
+            "npm run lint:fix"
         ]
     }
 }
