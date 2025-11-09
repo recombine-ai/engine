@@ -5,6 +5,13 @@ import { z } from 'zod'
 import { createOpenAIAdapter } from './llm-adapters/openai'
 
 // Mock OpenAI at the top level
+// NOTE ABOUT OPENAI_API_KEY in tests:
+// - For tests that need to inspect arguments passed to OpenAI (via mocking),
+//   we must avoid the adapter's __TESTING__ short-circuit and prevent a missing
+//   API key error. Setting OPENAI_API_KEY to a non-__TESTING__ value (e.g. 'mocked')
+//   satisfies both.
+// - For tests that don't need to hit the mocked client (just canned behavior),
+//   we set OPENAI_API_KEY='__TESTING__' so the adapter returns canned responses.
 vi.mock('openai', () => {
     const mockOpeAi = vi.fn(() => ({
         chat: {
@@ -126,8 +133,10 @@ describe('workflow.run', () => {
     })
 
     it('executes smart steps with parsed response', async () => {
+        // We set a non-__TESTING__ value so the adapter does not short-circuit
+        // and we can assert the exact payload passed to OpenAI's client.
         const prev = process.env.OPENAI_API_KEY
-        process.env.OPENAI_API_KEY = 'any'
+        process.env.OPENAI_API_KEY = 'mocked'
         const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
         OpenAI.mockReturnValue({
             chat: {
@@ -179,8 +188,9 @@ describe('workflow.run', () => {
     })
 
     it('passes explicit adapter options to OpenAI', async () => {
+        // Use a non-__TESTING__ value to force client invocation and inspect options
         const prev = process.env.OPENAI_API_KEY
-        process.env.OPENAI_API_KEY = 'any'
+        process.env.OPENAI_API_KEY = 'mocked'
         const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
         const createMock = vi.fn().mockResolvedValue({
             choices: [
@@ -214,6 +224,74 @@ describe('workflow.run', () => {
                 user: 'tester',
                 max_tokens: 11,
                 model: 'gpt-4o-2024-08-06',
+            }),
+        )
+        process.env.OPENAI_API_KEY = prev
+    })
+
+    it('is backward compatible: string model uses defaults (no schema)', async () => {
+        // String model path: force client invocation to observe defaults
+        const prev = process.env.OPENAI_API_KEY
+        process.env.OPENAI_API_KEY = 'mocked'
+        const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
+        const createMock = vi.fn().mockResolvedValue({
+            choices: [
+                {
+                    message: { content: 'ok' },
+                },
+            ],
+        })
+        OpenAI.mockReturnValue({
+            chat: { completions: { create: createMock } },
+        })
+
+        const ai = createAIEngine({ logger: { ...console, debug: noop, error: noop } })
+        const step = ai.getStepBuilder()
+        const cnv = ai.createConversation([])
+
+        const s = step({ name: 's', model: 'gpt-4o-2024-08-06', prompt: 'P', execute: vi.fn() })
+        const wf = ai.createWorkflow({ steps: [s], onError })
+        await wf.run(cnv, {})
+
+        expect(createMock).toBeCalledWith(
+            expect.objectContaining({
+                model: 'gpt-4o-2024-08-06',
+                temperature: 0.1,
+                response_format: { type: 'text' },
+            }),
+        )
+        process.env.OPENAI_API_KEY = prev
+    })
+
+    it('is backward compatible: omitted model uses default model and JSON schema formatting', async () => {
+        // Omitted model path with schema: ensure JSON schema formatting defaults
+        const prev = process.env.OPENAI_API_KEY
+        process.env.OPENAI_API_KEY = 'mocked'
+        const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
+        const createMock = vi.fn().mockResolvedValue({
+            choices: [
+                {
+                    message: { content: JSON.stringify({ foo: 1 }) },
+                },
+            ],
+        })
+        OpenAI.mockReturnValue({
+            chat: { completions: { create: createMock } },
+        })
+
+        const ai = createAIEngine({ logger: { ...console, debug: noop, error: noop } })
+        const step = ai.getStepBuilder()
+        const cnv = ai.createConversation([])
+
+        const schema = z.object({ foo: z.number() })
+        const s = step({ name: 's', schema, prompt: 'P', execute: vi.fn() })
+        const wf = ai.createWorkflow({ steps: [s], onError })
+        await wf.run(cnv, {})
+
+        expect(createMock).toBeCalledWith(
+            expect.objectContaining({
+                model: 'gpt-4o-2024-08-06',
+                response_format: expect.objectContaining({ type: 'json_schema' }),
             }),
         )
         process.env.OPENAI_API_KEY = prev

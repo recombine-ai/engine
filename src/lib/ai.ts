@@ -24,7 +24,11 @@ export type BasicModel =
     | (string & {}) // prevents compiler from simplifying the type to just `string`
 
 export interface LlmAdapter {
-    complete: (systemPrompt: string, messages: string, schema?: ZodSchema) => Promise<string>
+    generateResponse: (
+        systemPrompt: string,
+        messages: string,
+        schema?: ZodSchema,
+    ) => Promise<string>
 }
 
 export interface BasicStep<CTX> {
@@ -366,6 +370,7 @@ export interface EngineConfig {
      * Optional token storage object that provides access to authentication tokens.
      * @property {object} tokenStorage - Object containing method to retrieve token.
      * @property {() => Promise<string | null>} tokenStorage.getToken - Function that returns a promise resolving to an authentication token or null.
+     * @deprecated
      */
     tokenStorage?: { getToken: () => Promise<string | null> }
     /**
@@ -511,7 +516,6 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 await (step.onError
                     ? step.onError((error as Error).message, ctx)
                     : onError((error as Error).message, ctx))
-                // FIXME: this doesn't terminate the workflow
                 stepTracer?.addStepTrace(stepTrace)
                 state.terminate()
             }
@@ -560,7 +564,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                       getOpenAiOptions(modelOrAdapter || 'gpt-4o-2024-08-06', schema),
                   )
                 : modelOrAdapter
-        return adapter.complete(systemPrompt, messages, schema)
+        return adapter.generateResponse(systemPrompt, messages, schema)
     }
 
     return {
