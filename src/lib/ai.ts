@@ -29,6 +29,8 @@ export interface LlmAdapter {
         messages: string,
         schema?: ZodSchema,
     ) => Promise<string>
+    /** Returns adapter's configuration/options for tracing */
+    getOptions: () => unknown
 }
 
 export interface BasicStep<CTX> {
@@ -473,7 +475,12 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         ): Promise<void> {
             const stepTrace: StepTrace = {
                 name: step.name,
-                model: typeof step.model === 'string' ? step.model : undefined,
+                model:
+                    typeof step.model === 'string'
+                        ? step.model
+                        : step.model
+                          ? JSON.stringify(step.model.getOptions())
+                          : undefined,
                 schema:
                     'schema' in step
                         ? step.schema instanceof ZodSchema
@@ -544,26 +551,24 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     }
 
     async function runLLM(
-        modelOrAdapter: BasicModel | LlmAdapter | undefined,
+        model: BasicModel | LlmAdapter | undefined,
         systemPrompt: string,
         messages: string,
         schema?: ZodSchema,
     ) {
         logger.debug(
             'AI Engine: model:',
-            typeof modelOrAdapter === 'string' || modelOrAdapter === undefined
-                ? modelOrAdapter || 'gpt-4o-2024-08-06'
+            typeof model === 'string' || model === undefined
+                ? model || 'gpt-4o-2024-08-06'
                 : '[adapter]',
         )
         logger.debug('----------- RENDERED PROMPT ---------------')
         logger.debug(systemPrompt)
         logger.debug('-------------------------------------------')
         const adapter: LlmAdapter =
-            typeof modelOrAdapter === 'string' || modelOrAdapter === undefined
-                ? createOpenAIAdapter(
-                      getOpenAiOptions(modelOrAdapter || 'gpt-4o-2024-08-06', schema),
-                  )
-                : modelOrAdapter
+            typeof model === 'string' || model === undefined
+                ? createOpenAIAdapter(getOpenAiOptions(model || 'gpt-4o-2024-08-06', schema))
+                : model
         return adapter.generateResponse(systemPrompt, messages, schema)
     }
 

@@ -229,6 +229,30 @@ describe('workflow.run', () => {
         process.env.OPENAI_API_KEY = prev
     })
 
+    it('adds adapter options to step trace model as JSON string', async () => {
+        const stepTracer = { addStepTrace: vi.fn() }
+        const ai = createAIEngine({
+            stepTracer,
+            logger: { ...console, debug: noop, error: noop },
+        })
+        const step = ai.getStepBuilder()
+        const cnv = ai.createConversation([])
+
+        const options = { model: 'gpt-4o-2024-08-06', temperature: 0.2 }
+        const adapter = {
+            getOptions: () => options,
+            generateResponse: async () => 'ok',
+        }
+
+        const s = step({ name: 's', prompt: 'P', model: adapter, execute: vi.fn() })
+        const wf = ai.createWorkflow({ steps: [s], onError })
+        await wf.run(cnv, {})
+
+        expect(stepTracer.addStepTrace).toBeCalled()
+        const firstCallArg = (stepTracer.addStepTrace as Mock).mock.calls[0][0]
+        expect(firstCallArg.model).toBe(JSON.stringify(options))
+    })
+
     it('is backward compatible: string model uses defaults (no schema)', async () => {
         // String model path: force client invocation to observe defaults
         const prev = process.env.OPENAI_API_KEY

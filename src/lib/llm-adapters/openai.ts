@@ -16,6 +16,7 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export function createOpenAIAdapter(options: OpenAIChatOptions): LlmAdapter {
     return {
+        getOptions: () => options,
         async generateResponse(
             systemPrompt: string,
             messages: string,
