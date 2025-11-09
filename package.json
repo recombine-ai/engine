@@ -35,7 +35,7 @@
     },
     "dependencies": {
         "nunjucks": "^3.2.4",
-        "openai": "^4.68.4",
+        "openai": "^6.8.1",
         "zod": "3.23.8",
         "zod-to-json-schema": "^3.24.6"
     },

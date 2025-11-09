@@ -2,6 +2,7 @@ import { describe, it, expect, vi, Mock } from 'vitest'
 import { createAIEngine } from './ai'
 import { PromptFile } from './prompt-fs'
 import { z } from 'zod'
+import { createOpenAIAdapter } from './llm-adapters/openai'
 
 // Mock OpenAI at the top level
 vi.mock('openai', () => {
@@ -82,6 +83,7 @@ describe('conversationExample', () => {
 
 describe('workflow.run', () => {
     it('runs all steps', async () => {
+        process.env.OPENAI_API_KEY = '__TESTING__'
         const { ai, step, cnv } = getAi()
 
         const dumbStep = step({
@@ -124,6 +126,8 @@ describe('workflow.run', () => {
     })
 
     it('executes smart steps with parsed response', async () => {
+        const prev = process.env.OPENAI_API_KEY
+        process.env.OPENAI_API_KEY = 'any'
         const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
         OpenAI.mockReturnValue({
             chat: {
@@ -142,7 +146,6 @@ describe('workflow.run', () => {
         })
         const ai = createAIEngine({
             logger: { ...console, debug: noop, error: noop },
-            tokenStorage: { getToken: () => Promise.resolve('any') },
         })
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
@@ -165,6 +168,7 @@ describe('workflow.run', () => {
         })
 
         await wf.run(cnv, {})
+        process.env.OPENAI_API_KEY = prev
 
         expect(smartStep.execute).toBeCalledWith(
             { name: 'John', age: 30 },
@@ -174,8 +178,50 @@ describe('workflow.run', () => {
         )
     })
 
+    it('passes explicit adapter options to OpenAI', async () => {
+        const prev = process.env.OPENAI_API_KEY
+        process.env.OPENAI_API_KEY = 'any'
+        const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
+        const createMock = vi.fn().mockResolvedValue({
+            choices: [
+                {
+                    message: { content: 'ok' },
+                },
+            ],
+        })
+        OpenAI.mockReturnValue({
+            chat: { completions: { create: createMock } },
+        })
+
+        const ai = createAIEngine({ logger: { ...console, debug: noop, error: noop } })
+        const step = ai.getStepBuilder()
+        const cnv = ai.createConversation([])
+
+        const options = {
+            model: 'gpt-4o-2024-08-06',
+            temperature: 0.55,
+            user: 'tester',
+            max_tokens: 11,
+        }
+        const llm = createOpenAIAdapter(options)
+        const s = step({ name: 's', prompt: 'P', model: llm, execute: vi.fn() })
+        const wf = ai.createWorkflow({ steps: [s], onError })
+        await wf.run(cnv, {})
+
+        expect(createMock).toBeCalledWith(
+            expect.objectContaining({
+                temperature: 0.55,
+                user: 'tester',
+                max_tokens: 11,
+                model: 'gpt-4o-2024-08-06',
+            }),
+        )
+        process.env.OPENAI_API_KEY = prev
+    })
+
     describe('workflow handle', () => {
         it('terminates the workflow', async () => {
+            process.env.OPENAI_API_KEY = '__TESTING__'
             const { ai, step, cnv } = getAi()
             const firstStep = step({
                 name: 'first-step',
@@ -200,6 +246,7 @@ describe('workflow.run', () => {
             expect(secondStep.execute).not.toHaveBeenCalled()
         })
         it('rewinds to the specified step', async () => {
+            process.env.OPENAI_API_KEY = '__TESTING__'
             const { ai, step, cnv } = getAi()
 
             let secondStepCalled = false
@@ -229,6 +276,7 @@ describe('workflow.run', () => {
             expect(firstStep.execute).toBeCalledTimes(2)
         })
         it('rewinds up to maxAttempts', async () => {
+            process.env.OPENAI_API_KEY = '__TESTING__'
             const { ai, step, cnv } = getAi()
             const mockOnError = vi.fn()
 
@@ -258,6 +306,7 @@ describe('workflow.run', () => {
             expect(mockOnError).toHaveBeenCalledOnce()
         })
         it('resets the counter when passed to the next step', async () => {
+            process.env.OPENAI_API_KEY = '__TESTING__'
             const { ai, step, cnv } = getAi()
             const mockOnError = vi.fn()
 
@@ -341,7 +390,6 @@ function getAi(tracer = { addStep: noop }) {
     const ai = createAIEngine({
         tracer,
         logger: { ...console, debug: noop, error: noop },
-        tokenStorage: { getToken: () => Promise.resolve('__TESTING__') },
     })
     const step = ai.getStepBuilder()
     const cnv = ai.createConversation([])
