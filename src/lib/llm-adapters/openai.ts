@@ -1,5 +1,4 @@
 import { OpenAI } from 'openai'
-import { sleep } from 'openai/core'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import type { ZodSchema } from 'zod'
 import type { LlmAdapter } from '../ai'
@@ -25,7 +24,7 @@ export function createOpenAIAdapter(options: OpenAIChatOptions): LlmAdapter {
         ): Promise<string> {
             const apiKey = getApiKey()
             if (apiKey === '__TESTING__') {
-                await sleep(100)
+                await delay(100)
                 if (!_schema) {
                     return 'canned response'
                 }
