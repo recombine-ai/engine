@@ -480,7 +480,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                         ? step.model
                         : step.model
                           ? JSON.stringify(step.model.getOptions())
-                          : undefined,
+                          : 'default',
                 schema:
                     'schema' in step
                         ? step.schema instanceof ZodSchema
