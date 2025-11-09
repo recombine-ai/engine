@@ -1,7 +1,7 @@
 // cspell:words lstripBlocks
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import nunjucks from 'nunjucks'
-import { ZodSchema, ZodTypeAny, z } from 'zod'
+import { ZodSchema, ZodTypeAny } from 'zod'
 import { Logger } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
 import { PromptFile } from './prompt-fs'
