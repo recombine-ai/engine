@@ -1,16 +1,15 @@
 // cspell:words lstripBlocks
-import { OpenAI } from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import nunjucks from 'nunjucks'
-import { ZodSchema, ZodTypeAny, z } from 'zod'
+import { ZodSchema, ZodTypeAny } from 'zod'
 import { Logger } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
-import { sleep } from 'openai/core'
 import { PromptFile } from './prompt-fs'
 import { StepTrace, StepTracer } from './bosun/stepTracer'
 import { Tracer } from './bosun'
 import { createConsoleTracer, stdPrompt } from './bosun/tracer'
 import { zodToJsonSchema } from 'zod-to-json-schema'
+import { createOpenAIAdapter } from './llm-adapters/openai'
 
 /**
  * Represents a basic model name for LLMs.
@@ -23,6 +22,16 @@ export type BasicModel =
     | 'gpt-4.1-2025-04-14'
     | 'o1-2024-12-17'
     | (string & {}) // prevents compiler from simplifying the type to just `string`
+
+export interface LlmAdapter {
+    generateResponse: (
+        systemPrompt: string,
+        messages: string,
+        schema?: ZodSchema,
+    ) => Promise<string>
+    /** Returns adapter's configuration/options for tracing */
+    getOptions: () => unknown
+}
 
 export interface BasicStep<CTX> {
     /** Step name  */
@@ -50,8 +59,8 @@ export interface LLMStep<CTX> extends BasicStep<CTX> {
     /** Determines if the step should be run or not */
     runIf?: (messages: Conversation, ctx: CTX) => boolean | Promise<boolean>
 
-    /** LLM to use. Defaults to gpt-4o */
-    model?: BasicModel
+    /** LLM to use. Can be a model name or an adapter. Defaults to gpt-4o */
+    model?: BasicModel | LlmAdapter
 
     /**
      * Prompt can be a simple string or a link to a file, loaded with `loadFile` function which
@@ -363,6 +372,7 @@ export interface EngineConfig {
      * Optional token storage object that provides access to authentication tokens.
      * @property {object} tokenStorage - Object containing method to retrieve token.
      * @property {() => Promise<string | null>} tokenStorage.getToken - Function that returns a promise resolving to an authentication token or null.
+     * @deprecated
      */
     tokenStorage?: { getToken: () => Promise<string | null> }
     /**
@@ -408,15 +418,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     const stepTracer = cfg.stepTracer || undefined
     const logger = cfg.logger || globalThis.console
     const tracer = cfg.tracer || createConsoleTracer(logger)
-    let apiKey: string | null = null
-    const tokenStorage = cfg.tokenStorage || {
-        async getToken() {
-            if (process.env.OPENAI_API_KEY) {
-                return process.env.OPENAI_API_KEY
-            }
-            throw new Error('OpenAI API key is not set')
-        },
-    }
+    // tokenStorage kept for backward compatibility in config, but API keys are fetched by adapters now
 
     function createWorkflow<CTX extends object>({
         onError,
@@ -471,15 +473,14 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
             ctx: CTX,
             state: WorkflowState<CTX>,
         ): Promise<void> {
-            if (!apiKey) {
-                apiKey = await tokenStorage.getToken()
-            }
-            if (!apiKey) {
-                throw new Error('LLM API key is not provided')
-            }
             const stepTrace: StepTrace = {
                 name: step.name,
-                model: step.model,
+                model:
+                    typeof step.model === 'string'
+                        ? step.model
+                        : step.model
+                          ? JSON.stringify(step.model.getOptions())
+                          : 'default',
                 schema:
                     'schema' in step
                         ? step.schema instanceof ZodSchema
@@ -508,22 +509,10 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 stepTrace.stringifiedConversation = stringifiedMessages
                 stepTracer?.addStepTrace(stepTrace)
                 if ('schema' in step) {
-                    response = await runLLM(
-                        apiKey,
-                        prompt,
-                        stringifiedMessages,
-                        step.schema,
-                        step.model,
-                    )
+                    response = await runLLM(step.model, prompt, stringifiedMessages, step.schema)
                     response = step.schema.parse(JSON.parse(response))
                 } else {
-                    response = await runLLM(
-                        apiKey,
-                        prompt,
-                        stringifiedMessages,
-                        undefined,
-                        step.model,
-                    )
+                    response = await runLLM(step.model, prompt, stringifiedMessages, undefined)
                 }
                 if (!response) {
                     throw new Error('No response from OpenAI')
@@ -534,7 +523,6 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 await (step.onError
                     ? step.onError((error as Error).message, ctx)
                     : onError((error as Error).message, ctx))
-                // FIXME: this doesn't terminate the workflow
                 stepTracer?.addStepTrace(stepTrace)
                 state.terminate()
             }
@@ -563,38 +551,25 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     }
 
     async function runLLM(
-        apiKey: string,
+        model: BasicModel | LlmAdapter | undefined,
         systemPrompt: string,
         messages: string,
         schema?: ZodSchema,
-        model: BasicModel = 'gpt-4o-2024-08-06',
     ) {
-        logger.debug('AI Engine: model:', model)
+        logger.debug(
+            'AI Engine: model:',
+            typeof model === 'string' || model === undefined
+                ? model || 'gpt-4o-2024-08-06'
+                : '[adapter]',
+        )
         logger.debug('----------- RENDERED PROMPT ---------------')
         logger.debug(systemPrompt)
         logger.debug('-------------------------------------------')
-        if (apiKey === '__TESTING__') {
-            await sleep(100)
-            if (!schema) {
-                return 'canned response'
-            }
-            return JSON.stringify({ message: 'canned response', reasons: [] })
-        }
-        const client = new OpenAI({ apiKey })
-
-        const response: OpenAI.Chat.ChatCompletion = await client.chat.completions.create({
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: messages },
-            ],
-            ...getOpenAiOptions(model, schema),
-        })
-
-        if (!response.choices[0].message.content) {
-            throw new Error('No response from OpenAI')
-        }
-
-        return response.choices[0].message.content
+        const adapter: LlmAdapter =
+            typeof model === 'string' || model === undefined
+                ? createOpenAIAdapter(getOpenAiOptions(model || 'gpt-4o-2024-08-06', schema))
+                : model
+        return adapter.generateResponse(systemPrompt, messages, schema)
     }
 
     return {

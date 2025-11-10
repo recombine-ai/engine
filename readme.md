@@ -6,13 +6,13 @@ A TypeScript library for building agentic workflows for conversational AI.
 
 ## Features
 
--   🔄 Multi-step agentic workflows
--   🎯 Conditional execution and reviewers
--   📝 Structured responses using Zod schemas
--   🗂️ File-based prompts
--   ⚡ Message history management
--   🌍 Context injection using Nunjucks templates
--   👩‍💻 Ready to be integrated with Recombine Bosun prompt-engineering IDE.
+- 🔄 Multi-step agentic workflows
+- 🎯 Conditional execution and reviewers
+- 📝 Structured responses using Zod schemas
+- 🗂️ File-based prompts
+- ⚡ Message history management
+- 🌍 Context injection using Nunjucks templates
+- 👩‍💻 Ready to be integrated with Recombine Bosun prompt-engineering IDE.
 
 ## Installation
 
@@ -123,28 +123,27 @@ To contribute to this project, you'll need to set up your local development envi
 2. **Set up Git hooks with Husky:**
 
     Git hooks are automatically installed when you run `yarn install` (via the `prepare` script). The project uses Husky to manage the following Git hooks:
-
     - **`pre-commit`**: Runs `lint-staged` to format and lint only staged files using Prettier and ESLint
     - **`pre-push`**: Runs TypeScript type checking to ensure no type errors before pushing
     - **`post-merge`**: Automatically runs `yarn install` if `package.json` or `yarn.yaml` changed after a merge
 
 ### Available Scripts
 
--   **`yarn dev`** - Start TypeScript compiler in watch mode
--   **`yarn build`** - Build the project
--   **`yarn typecheck`** - Run TypeScript type checking without emitting files
--   **`yarn test`** - Run tests with Vitest
--   **`yarn lint`** - Lint code with ESLint
--   **`yarn lint:fix`** - Lint and automatically fix issues
--   **`yarn format`** - Format code with Prettier
--   **`yarn format:check`** - Check code formatting without making changes
+- **`yarn dev`** - Start TypeScript compiler in watch mode
+- **`yarn build`** - Build the project
+- **`yarn typecheck`** - Run TypeScript type checking without emitting files
+- **`yarn test`** - Run tests with Vitest
+- **`yarn lint`** - Lint code with ESLint
+- **`yarn lint:fix`** - Lint and automatically fix issues
+- **`yarn format`** - Format code with Prettier
+- **`yarn format:check`** - Check code formatting without making changes
 
 ### Code Quality
 
 The project maintains code quality through:
 
--   **TypeScript** for type safety
--   **ESLint** for code linting
--   **Prettier** for consistent code formatting
--   **Vitest** for testing
--   **Husky + lint-staged** for automated pre-commit checks
+- **TypeScript** for type safety
+- **ESLint** for code linting
+- **Prettier** for consistent code formatting
+- **Vitest** for testing
+- **Husky + lint-staged** for automated pre-commit checks
