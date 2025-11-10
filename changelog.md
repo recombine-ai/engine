@@ -1,5 +1,10 @@
 # Changelog
 
+### 0.8.1 → 0.8.2 (unstable)
+
+-   Model now accepts a string or an `LlmAdapter`. Old defaults are used when model is a string.
+-   Added OpenAI adapter `createOpenAIAdapter(options)`.
+
 ### 0.8.0 → 0.8.1 (unstable)
 
 -   Added prompt context mapping functionality to Context class:
