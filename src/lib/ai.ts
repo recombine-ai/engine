@@ -180,7 +180,7 @@ type WorkflowStep<CTX> = StringLLMStep<CTX> | JsonLLMStep<CTX, any> | Programmat
 export interface WorkflowConfig<CTX> {
     onError: (error: string, ctx: CTX) => Promise<unknown>
     steps?: WorkflowStep<CTX>[]
-    workflowId?: string
+    name?: string
     beforeEachCallback?: () => Promise<unknown>
 }
 
@@ -426,7 +426,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     function createWorkflow<CTX extends object>({
         onError,
         steps = [],
-        workflowId = 'workflow',
+        name = 'workflow',
     }: WorkflowConfig<CTX>): Workflow<CTX> {
         steps.forEach(addStepToTracer)
         return {
@@ -481,8 +481,8 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         ): Promise<void> {
             const stepTrace: StepTrace = {
                 name: step.name,
-                workflowId,
-                workflowRunId: state.workflowRunId,
+                workflowId: name,
+                workflowRunId: state.runId,
                 model:
                     typeof step.model === 'string'
                         ? step.model
@@ -606,14 +606,15 @@ class WorkflowState<CTX> {
     private attempts = new Map<number, number>()
     private rewinder = 0
     private lastRewindTo = 0
-    public workflowRunId: string
+    readonly runId: string
 
     constructor(
         private logger: Logger,
         private steps: WorkflowStep<CTX>[],
     ) {
-        this.workflowRunId = randomUUID()
+        this.runId = randomUUID()
     }
+
     terminate() {
         this.logger.debug('AI Engine: Terminating conversation...')
         this.shouldRun = false

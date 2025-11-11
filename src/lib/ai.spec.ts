@@ -518,7 +518,7 @@ describe('workflow.run', () => {
             const wf = engine.createWorkflow({
                 steps: [step],
                 onError: async () => {},
-                workflowId: 'wf-1',
+                name: 'wf-1',
             })
             const conversation = engine.createConversation([])
             await wf.run(conversation, { foo: 'bar' })
