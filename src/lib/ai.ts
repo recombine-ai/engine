@@ -418,7 +418,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     const stepTracer = cfg.stepTracer || undefined
     const logger = cfg.logger || globalThis.console
     const tracer = cfg.tracer || createConsoleTracer(logger)
-    // tokenStorage kept for backward compatibility in config, but API keys are fetched by adapters now
+    // tokenStorage is used by the default adapter to fetch API keys (backwards compatible)
 
     function createWorkflow<CTX extends object>({
         onError,
@@ -567,7 +567,15 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         logger.debug('-------------------------------------------')
         const adapter: LlmAdapter =
             typeof model === 'string' || model === undefined
-                ? createOpenAIAdapter(getOpenAiOptions(model || 'gpt-4o-2024-08-06', schema))
+                ? createOpenAIAdapter(getOpenAiOptions(model || 'gpt-4o-2024-08-06', schema), {
+                      tokenStorage:
+                          cfg.tokenStorage ||
+                          ({
+                              async getToken() {
+                                  return process.env.OPENAI_API_KEY ?? null
+                              },
+                          } as const),
+                  })
                 : model
         return adapter.generateResponse(systemPrompt, messages, schema)
     }

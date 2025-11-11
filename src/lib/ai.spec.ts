@@ -213,7 +213,13 @@ describe('workflow.run', () => {
             user: 'tester',
             max_tokens: 11,
         }
-        const llm = createOpenAIAdapter(options)
+        const llm = createOpenAIAdapter(options, {
+            tokenStorage: {
+                async getToken() {
+                    return process.env.OPENAI_API_KEY || null
+                },
+            },
+        })
         const s = step({ name: 's', prompt: 'P', model: llm, execute: vi.fn() })
         const wf = ai.createWorkflow({ steps: [s], onError })
         await wf.run(cnv, {})
