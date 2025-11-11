@@ -5,16 +5,16 @@ import type { LlmAdapter } from '../ai'
 
 export type OpenAIChatOptions = Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'>
 
-function getApiKey(): string {
-    if (process.env.OPENAI_API_KEY) {
-        return process.env.OPENAI_API_KEY
-    }
-    throw new Error('OpenAI API key is not set')
+export type OpenAIAdapterAuth = {
+    tokenStorage: { getToken: () => Promise<string | null> }
 }
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-export function createOpenAIAdapter(options: OpenAIChatOptions): LlmAdapter {
+export function createOpenAIAdapter(
+    options: OpenAIChatOptions,
+    auth: OpenAIAdapterAuth,
+): LlmAdapter {
     return {
         getOptions: () => options,
         async generateResponse(
@@ -22,7 +22,10 @@ export function createOpenAIAdapter(options: OpenAIChatOptions): LlmAdapter {
             messages: string,
             _schema?: ZodSchema,
         ): Promise<string> {
-            const apiKey = getApiKey()
+            const apiKey = await auth.tokenStorage.getToken()
+            if (!apiKey) {
+                throw new Error('OpenAI API key is not set')
+            }
             if (apiKey === '__TESTING__') {
                 await delay(100)
                 if (!_schema) {
