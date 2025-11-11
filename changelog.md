@@ -1,5 +1,9 @@
 # Changelog
 
+### 0.8.1 → 0.8.3 (unstable)
+
+- Fixed missing tokenStorage in `LlmAdapter`.
+
 ### 0.8.1 → 0.8.2 (unstable)
 
 - Model now accepts a string or an `LlmAdapter`. Old defaults are used when model is a string.
