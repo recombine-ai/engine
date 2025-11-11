@@ -1,5 +1,10 @@
 # Changelog
 
+### 0.8.3 → 0.8.4 (unstable)
+
+- Enhanced `StepTrace` type with `workflowId` and `workflowRunId` for better trace context.
+- Updated `WorkflowConfig` to include an optional `name` of workflow.
+
 ### 0.8.1 → 0.8.3 (unstable)
 
 - Fixed missing tokenStorage in `LlmAdapter`.

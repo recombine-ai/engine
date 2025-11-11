@@ -1,6 +1,5 @@
 // cspell:words lstripBlocks
 import { randomUUID } from 'crypto'
-import { OpenAI } from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import nunjucks from 'nunjucks'
 import { ZodSchema, ZodTypeAny } from 'zod'

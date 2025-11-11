@@ -26,6 +26,13 @@ vi.mock('openai', () => {
     }
 })
 
+function makeStepTracer() {
+    return {
+        addStepTrace: vi.fn(),
+        flush: vi.fn(() => Promise.resolve()),
+    }
+}
+
 describe('conversationExample', () => {
     it('outputs conversation string ignoring added messages', () => {
         const engine = createAIEngine()
@@ -236,7 +243,7 @@ describe('workflow.run', () => {
     })
 
     it('adds adapter options to step trace model as JSON string', async () => {
-        const stepTracer = { addStepTrace: vi.fn() }
+        const stepTracer = makeStepTracer()
         const ai = createAIEngine({
             stepTracer,
             logger: { ...console, debug: noop, error: noop },
@@ -494,12 +501,6 @@ describe('workflow.run', () => {
     })
 
     describe('stepTracer integration', () => {
-        function makeStepTracer() {
-            return {
-                addStepTrace: vi.fn(),
-                flush: vi.fn(() => Promise.resolve()),
-            }
-        }
         function makeAi(stepTracer: ReturnType<typeof makeStepTracer>) {
             return createAIEngine({
                 logger: { ...console, debug: vi.fn(), error: vi.fn() },
