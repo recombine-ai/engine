@@ -2,15 +2,44 @@ import { ZodSchema } from 'zod'
 import { PromptFile } from '../prompt-fs'
 
 export type StepTrace = {
+    /** Unique ID for the trace */
+    traceId?: string
+    callId?: string
+
+    /** Optional, to group traces within a broader context */
+    scopeId?: string
+
+    /** Just unique name */
+    workflowId: string
+    /** Unique ID for the workflow run */
+    workflowRunId: string
+
     name: string
+
     renderedPrompt?: string
-    receivedContext?: unknown
-    receivedPrompt?: string | PromptFile
+    receivedContext?: Record<string, unknown> | unknown
+    receivedPrompt?: string | PromptFile | File
+
     stringifiedConversation?: string
     schema?: ZodSchema
     model?: string
+
+    /** Raw response from LLM or function call result */
+    response?: string
+
+    /** Timestamp in milliseconds */
+    createdAt?: number
 }
 
 export interface StepTracer {
-    addStepTrace(stepTrace: StepTrace): void
+    /**
+     * Add a step trace
+     * @param trace The step trace to add
+     */
+    addStepTrace(trace: StepTrace): void
+
+    /**
+     * Flush any buffered traces to storage
+     */
+    flush(): Promise<void>
 }
