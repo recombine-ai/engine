@@ -2,7 +2,7 @@ import { Message } from '../ai'
 import { Logger, Scheduler } from '../interfaces'
 import { SendAction } from './action'
 import { Context } from './context'
-import { Tracer } from './tracer'
+import { StepRegistry, Tracer } from './tracer'
 import { StepTracer } from './stepTracer'
 
 /**
@@ -27,7 +27,9 @@ import { StepTracer } from './stepTracer'
  */
 type DefaultContext = Record<string, any>
 export interface TestAgentFactoryProps<CTX extends DefaultContext = DefaultContext> {
+    /** @deprecated */
     tracer: Tracer
+    stepRegistry: StepRegistry
     stepTracer: StepTracer
     logger: Logger
     scheduler: Scheduler
