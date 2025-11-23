@@ -1,5 +1,7 @@
 import { ZodSchema } from 'zod'
 import { PromptFile } from '../prompt-fs'
+import { Logger } from '../interfaces'
+import zodToJsonSchema from 'zod-to-json-schema'
 
 export type StepTrace = {
     /** Unique ID for the trace */
@@ -42,4 +44,35 @@ export interface StepTracer {
      * Flush any buffered traces to storage
      */
     flush(): Promise<void>
+}
+
+export function createStubStepTracer(logger: Logger) {
+    return {
+        addStepTrace(trace: StepTrace) {
+            logger.log(`StepTrace: ${trace.name}, in workflow (${trace.workflowId})`)
+            if (trace.model) {
+                logger.log(`StepTrace, model: ${trace.model}`)
+            }
+            if (trace.schema) {
+                logger.log('StepTrace, schema:', zodToJsonSchema(trace.schema))
+            }
+            if (trace.receivedContext) {
+                logger.log('StepTrace, context:', trace.receivedContext)
+            }
+            if (trace.stringifiedConversation) {
+                logger.log(`StepTrace, messages: \n${trace.stringifiedConversation}`)
+            }
+            if (trace.renderedPrompt) {
+                logger.log(
+                    '------------ RENDERED PROMPT ----------\n' +
+                        trace.renderedPrompt +
+                        '\n---------------------------------------',
+                )
+            }
+            if (trace.response) {
+                logger.log(`StepTrace, LLM response:\n${trace.response}`)
+            }
+        },
+        async flush() {},
+    } satisfies StepTracer
 }

@@ -1,6 +1,5 @@
 import { OpenAI } from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
-import type { ZodSchema } from 'zod'
 import type { LlmAdapter } from '../ai'
 
 export type OpenAIChatOptions = Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'>
@@ -17,21 +16,17 @@ export function createOpenAIAdapter(
 ): LlmAdapter {
     return {
         getOptions: () => options,
-        async generateResponse(
-            systemPrompt: string,
-            messages: string,
-            _schema?: ZodSchema,
-        ): Promise<string> {
+        async generateResponse(systemPrompt: string, messages: string): Promise<string> {
             const apiKey = await auth.tokenStorage.getToken()
             if (!apiKey) {
                 throw new Error('OpenAI API key is not set')
             }
             if (apiKey === '__TESTING__') {
                 await delay(100)
-                if (!_schema) {
-                    return 'canned response'
+                if (options.response_format && 'json_schema' in options.response_format) {
+                    return JSON.stringify({ message: 'canned response', reasons: [] })
                 }
-                return JSON.stringify({ message: 'canned response', reasons: [] })
+                return 'canned response'
             }
 
             const client = new OpenAI({ apiKey })

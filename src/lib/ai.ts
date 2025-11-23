@@ -6,9 +6,8 @@ import { ZodSchema, ZodTypeAny } from 'zod'
 import { Logger } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
 import { PromptFile } from './prompt-fs'
-import { StepTrace, StepTracer } from './bosun/stepTracer'
-import { Tracer } from './bosun'
-import { createConsoleTracer, stdPrompt } from './bosun/tracer'
+import { createStubStepTracer, StepTrace, StepTracer } from './bosun/stepTracer'
+import { createStubRegistry, stdPrompt, StepRegistry, Tracer } from './bosun/tracer'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { createOpenAIAdapter } from './llm-adapters/openai'
 
@@ -25,11 +24,13 @@ export type BasicModel =
     | (string & {}) // prevents compiler from simplifying the type to just `string`
 
 export interface LlmAdapter {
-    generateResponse: (
-        systemPrompt: string,
-        messages: string,
-        schema?: ZodSchema,
-    ) => Promise<string>
+    /**
+     * @param systemPrompt – rendered system prompt
+     * @param messages – stringified {@link Conversation}
+     * @param _unusedSchema **DEPRECATED** left for one version to not break types
+     * @returns LLM Response
+     */
+    generateResponse: (systemPrompt: string, messages: string, _unused?: any) => Promise<string>
     /** Returns adapter's configuration/options for tracing */
     getOptions: () => unknown
 }
@@ -272,7 +273,8 @@ export interface AIEngine {
 
 /**
  * Represents a conversation between a user and an AI agent.
- * Provides methods to manage the conversation flow, format messages, and convert the conversation to a string representation.
+ * Provides methods to manage the conversation flow, format messages, and convert the conversation
+ * to a string representation.
  *
  * @example
  * ```typescript
@@ -346,8 +348,9 @@ export interface Conversation {
     getProposedReply: () => string | null
 
     /**
-     * Gets the history of all messages in the conversation.
-     * Returns {@link Message} rather than {@link ConversationMessage} because none of the {@link ConversationMessage} properties should be accessed outside of the {@link Conversation} context.
+     * Gets the history of all messages in the conversation. Returns {@link Message} rather than
+     * {@link ConversationMessage} because none of the {@link ConversationMessage} properties should
+     * be accessed outside of the {@link Conversation} context.
      * @returns An array of Message objects representing the conversation history.
      */
     getHistory: () => Message[]
@@ -373,8 +376,10 @@ export interface EngineConfig {
     /**
      * Optional token storage object that provides access to authentication tokens.
      * @property {object} tokenStorage - Object containing method to retrieve token.
-     * @property {() => Promise<string | null>} tokenStorage.getToken - Function that returns a promise resolving to an authentication token or null.
-     * @deprecated
+     * @property {() => Promise<string | null>} tokenStorage.getToken - Function that returns a
+     * promise resolving to an authentication token or null.
+     *
+     * @deprecated use {@link LlmAdapter} (which has its onw storage) in `model` field instead
      */
     tokenStorage?: { getToken: () => Promise<string | null> }
     /**
@@ -387,8 +392,16 @@ export interface EngineConfig {
     sendAction?: SendAction
     /** traces received prompt, rendered prompt, context and other useful info about LLM execution */
     stepTracer?: StepTracer
-    /** registers steps in workflow */
+    /**
+     * registers steps in workflow
+     * @deprecated use `stepRegistry` instead
+     **/
     tracer?: Tracer
+
+    /**
+     * registers steps in workflow
+     */
+    stepRegistry?: StepRegistry
 }
 
 /**
@@ -417,9 +430,9 @@ export interface EngineConfig {
  * ```
  */
 export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
-    const stepTracer = cfg.stepTracer || undefined
     const logger = cfg.logger || globalThis.console
-    const tracer = cfg.tracer || createConsoleTracer(logger)
+    const stepTracer = cfg.stepTracer || createStubStepTracer(logger)
+    const registry = cfg.stepRegistry || cfg.tracer || createStubRegistry(logger)
     // tokenStorage is used by the default adapter to fetch API keys (backwards compatible)
 
     function createWorkflow<CTX extends object>({
@@ -435,13 +448,12 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                     await beforeEach?.(messages, ctx, state)
                     const step = state.getStep()
                     if (state.isTerminated()) {
-                        logger.debug('AI Engine: run terminated')
+                        logger.log('AI Engine, run terminated')
                         break
                     }
                     if (!step.runIf || (await step.runIf(messages, ctx))) {
                         const action = makeAction(cfg.sendAction, 'AI', step.name)
                         await action('started')
-                        logger.debug(`AI Engine: Step: ${step.name}`)
                         if ('prompt' in step) {
                             await runStep(step, messages, ctx, state)
                         } else {
@@ -451,7 +463,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                     }
                 } while (state.next())
 
-                await stepTracer?.flush()
+                await stepTracer.flush()
                 return state.isTerminated() ? null : messages.getProposedReply()
             },
 
@@ -463,7 +475,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
 
         function addStepToTracer(step: WorkflowStep<CTX>) {
             if ('prompt' in step) {
-                tracer.addStep({
+                registry.addStep({
                     name: step.name,
                     prompt: stdPrompt(step.prompt),
                     type: 'text',
@@ -502,20 +514,14 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 let prompt =
                     typeof step.prompt === 'string' ? step.prompt : await step.prompt.content()
                 stepTrace.receivedPrompt = prompt
-                logger.debug('AI Engine: context', ctx)
-                logger.debug(
-                    'AI Engine: messages',
-                    conversation.toString({ ignoreAddedMessages: step.ignoreAddedMessages }),
-                )
                 prompt = renderPrompt(prompt, ctx)
 
                 stepTrace.renderedPrompt = prompt
                 const stringifiedMessages = conversation.toString({
                     ignoreAddedMessages: step.ignoreAddedMessages,
                 })
-                logger.debug('AI Engine stringified: ' + stringifiedMessages)
                 stepTrace.stringifiedConversation = stringifiedMessages
-                stepTracer?.addStepTrace(stepTrace)
+                stepTracer.addStepTrace(stepTrace)
                 if ('schema' in step) {
                     response = await runLLM(step.model, prompt, stringifiedMessages, step.schema)
                     response = step.schema.parse(JSON.parse(response))
@@ -525,13 +531,13 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 if (!response) {
                     throw new Error('No response from OpenAI')
                 }
-                logger.debug(`AI Engine: executing ${step.name}, LLM response`, response)
+                logger.log(`AI Engine, executing ${step.name}`)
                 await step.execute(response, conversation, ctx, state)
             } catch (error) {
                 await (step.onError
                     ? step.onError((error as Error).message, ctx)
                     : onError((error as Error).message, ctx))
-                stepTracer?.addStepTrace(stepTrace)
+                stepTracer.addStepTrace(stepTrace)
                 state.terminate()
             }
         }
@@ -548,7 +554,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 }
             } catch (error) {
                 logger.error(
-                    `AI Engine: error in dumb step ${step.name}: ${(error as Error).message}`,
+                    `AI Engine, error in dumb step ${step.name}: ${(error as Error).message}`,
                 )
                 await (step.onError
                     ? step.onError((error as Error).message, ctx)
@@ -564,28 +570,13 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         messages: string,
         schema?: ZodSchema,
     ) {
-        logger.debug(
-            'AI Engine: model:',
-            typeof model === 'string' || model === undefined
-                ? model || 'gpt-4o-2024-08-06'
-                : '[adapter]',
-        )
-        logger.debug('----------- RENDERED PROMPT ---------------')
-        logger.debug(systemPrompt)
-        logger.debug('-------------------------------------------')
         const adapter: LlmAdapter =
             typeof model === 'string' || model === undefined
                 ? createOpenAIAdapter(getOpenAiOptions(model || 'gpt-4o-2024-08-06', schema), {
-                      tokenStorage:
-                          cfg.tokenStorage ||
-                          ({
-                              async getToken() {
-                                  return process.env.OPENAI_API_KEY ?? null
-                              },
-                          } as const),
+                      tokenStorage: cfg.tokenStorage || fallBackTokenStorage,
                   })
                 : model
-        return adapter.generateResponse(systemPrompt, messages, schema)
+        return adapter.generateResponse(systemPrompt, messages)
     }
 
     return {
@@ -596,6 +587,12 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
             return (step: any) => step
         },
     }
+}
+
+const fallBackTokenStorage = {
+    async getToken() {
+        return process.env.OPENAI_API_KEY ?? null
+    },
 }
 
 class WorkflowState<CTX> {
