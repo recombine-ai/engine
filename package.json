@@ -1,6 +1,6 @@
 {
     "name": "@recombine-ai/engine",
-    "version": "0.8.4",
+    "version": "0.8.5",
     "description": "Recombine AI engine for creating conversational AI agents",
     "main": "build/index.js",
     "types": "build/index.d.ts",
