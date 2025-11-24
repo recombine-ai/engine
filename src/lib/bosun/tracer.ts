@@ -7,22 +7,41 @@ export interface PromptString {
     content: () => Promise<string>
 }
 
-export interface StepTraceDef {
+export interface StepDef {
     name: string
     type: 'streaming-response' | 'streaming-detect' | 'text'
     prompt: PromptFile | PromptString
     schema?: ZodSchema
 }
-export interface Tracer {
-    addStep(def: StepTraceDef): void
+
+/**
+ * @deprecated use `StepDef` instead
+ */
+export type StepTraceDef = StepDef
+
+/**
+ * @deprecated use `StepRegistry` instead
+ */
+export type Tracer = StepRegistry
+
+export interface StepRegistry {
+    addStep(def: StepDef): void
 }
 
-export function createConsoleTracer(logger: Logger): Tracer {
+/**
+ * @deprecated use `createStubRegistry` instead
+ */
+export const createConsoleTracer = createStubRegistry
+
+/**
+ * a stub registry, that just prints step in logs
+ */
+export function createStubRegistry(logger: Logger): Tracer {
     return {
         addStep(def) {
-            logger.debug('Tracer, step added:', def)
+            logger.debug('Step registry, step added:', def)
         },
-    }
+    } as StepRegistry
 }
 
 export function stdPrompt(prompt: PromptFile | string) {

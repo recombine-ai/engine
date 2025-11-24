@@ -18,7 +18,7 @@ export function createLocalFS(cfg: FsConfig) {
             return {
                 type: 'file',
                 content: async () => {
-                    logger.debug('AI Engine: loading prompt:', path)
+                    logger.log('Local FS, loading prompt:', path)
                     return fs.promises.readFile(join(cfg.basePath, path), 'utf-8')
                 },
                 path,

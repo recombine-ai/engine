@@ -1,5 +1,10 @@
 # Changelog
 
+### 0.8.4 → 0.8.5 (unstable)
+
+- Clean up logging in favor of StepTracer, which logs everything by default,
+- Deprecated `Tracer` in favor of `StepRegistry` – just renaming.
+
 ### 0.8.3 → 0.8.4 (unstable)
 
 - Enhanced `StepTrace` type with `workflowId` and `workflowRunId` for better trace context.
