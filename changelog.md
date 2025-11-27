@@ -1,5 +1,9 @@
 # Changelog
 
+### 0.8.6 → 0.8.7 (unstable)
+
+- Better validation logging in AIEngine
+
 ### 0.8.5 → 0.8.6 (unstable)
 
 - FIX: Added "schema" option to LlmAdapter.generateResponse()
