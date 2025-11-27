@@ -1,5 +1,9 @@
 # Changelog
 
+### 0.8.5 → 0.8.6 (unstable)
+
+- FIX: Added "schema" option to LlmAdapter.generateResponse()
+
 ### 0.8.4 → 0.8.5 (unstable)
 
 - Clean up logging in favor of StepTracer, which logs everything by default,
@@ -10,7 +14,7 @@
 - Enhanced `StepTrace` type with `workflowId` and `workflowRunId` for better trace context.
 - Updated `WorkflowConfig` to include an optional `name` of workflow.
 
-### 0.8.1 → 0.8.3 (unstable)
+### 0.8.2 → 0.8.3 (unstable)
 
 - Fixed missing tokenStorage in `LlmAdapter`.
 

@@ -27,10 +27,14 @@ export interface LlmAdapter {
     /**
      * @param systemPrompt – rendered system prompt
      * @param messages – stringified {@link Conversation}
-     * @param _unusedSchema **DEPRECATED** left for one version to not break types
+     * @param schema - optional Zod schema to pass to the model. Will overwrite any schema set in adapter options.
      * @returns LLM Response
      */
-    generateResponse: (systemPrompt: string, messages: string, _unused?: any) => Promise<string>
+    generateResponse: (
+        systemPrompt: string,
+        messages: string,
+        schema?: ZodTypeAny,
+    ) => Promise<string>
     /** Returns adapter's configuration/options for tracing */
     getOptions: () => unknown
 }
@@ -576,7 +580,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                       tokenStorage: cfg.tokenStorage || fallBackTokenStorage,
                   })
                 : model
-        return adapter.generateResponse(systemPrompt, messages)
+        return adapter.generateResponse(systemPrompt, messages, schema)
     }
 
     return {
