@@ -1,5 +1,5 @@
 # If package.json changed, install dependencies
-if git diff --name-only HEAD@{1} HEAD | grep -E '(^package.json$|^yarn.lock$)'; then
-  echo "package.json changed — running yarn install"
-  yarn install
+if git diff --name-only HEAD@{1} HEAD | grep -E '(^package.json$|^package-lock.json$)'; then
+  echo "package.json changed — running npm install"
+  npm install
 fi
