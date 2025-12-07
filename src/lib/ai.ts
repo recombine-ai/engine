@@ -534,6 +534,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                         logger.error(`AI-generated response in step ${step.name} violates schema`, {
                             response,
                             schema: zodToJsonSchema(step.schema),
+                            errors: step.schema.safeParse(response).error,
                         })
                         throw new Error(`Response validation failed for step ${step.name}`)
                     }
