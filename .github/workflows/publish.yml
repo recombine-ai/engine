@@ -1,0 +1,42 @@
+name: 'Publish to NPM'
+
+on:
+    push:
+        tags:
+            - 'v*.*.*'
+
+permissions:
+    id-token: write
+    contents: read
+
+env:
+    NODE_VERSION: ${{ vars.NODE_TARGET_VERSION }} # v20
+
+jobs:
+    publish:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: 'Setup Node'
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: 'npm'
+                  registry-url: 'https://registry.npmjs.org'
+
+            # Ensure npm 11.5.1 or later is installed
+            - name: Update npm
+              run: npm install -g npm@latest
+
+            - name: 'Install dependencies'
+              run: npm ci
+
+            - name: 'Build'
+              run: npm run build
+
+            - name: 'Publish to npm'
+              run: npm publish --access public
