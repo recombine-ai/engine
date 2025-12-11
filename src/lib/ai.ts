@@ -527,12 +527,17 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 stepTrace.stringifiedConversation = stringifiedMessages
                 stepTracer.addStepTrace(stepTrace)
                 if ('schema' in step) {
-                    response = await runLLM(step.model, prompt, stringifiedMessages, step.schema)
+                    const stringResponse = await runLLM(
+                        step.model,
+                        prompt,
+                        stringifiedMessages,
+                        step.schema,
+                    )
                     try {
-                        response = step.schema.parse(JSON.parse(response))
+                        response = step.schema.parse(JSON.parse(stringResponse))
                     } catch (err) {
                         logger.error(`AI-generated response in step ${step.name} violates schema`, {
-                            response,
+                            response: stringResponse,
                             schema: zodToJsonSchema(step.schema),
                             errors: step.schema.safeParse(response).error,
                         })
