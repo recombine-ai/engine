@@ -10,7 +10,7 @@ permissions:
     contents: read
 
 env:
-    NODE_VERSION: ${{ vars.NODE_TARGET_VERSION }} # v20
+    NODE_VERSION: 20
 
 jobs:
     publish:
@@ -24,7 +24,7 @@ jobs:
             - name: 'Setup Node'
               uses: actions/setup-node@v4
               with:
-                  node-version: ${{ env.NODE_VERSION }}
+                  node-version: 20
                   cache: 'npm'
                   registry-url: 'https://registry.npmjs.org'
 
