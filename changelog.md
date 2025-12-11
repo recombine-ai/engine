@@ -1,5 +1,9 @@
 # Changelog
 
+### 0.8.7 → 0.8.8 (unstable)
+
+- Better logging for structured response parsing errors
+
 ### 0.8.6 → 0.8.7 (unstable)
 
 - Better validation logging in AIEngine
