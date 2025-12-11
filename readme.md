@@ -114,7 +114,8 @@ To contribute to this project, you'll need to set up your local development envi
     npm install
     ```
 
-    This project uses `npm` as its package manager. If you don't have it installed, you can install it with:
+    This project uses `npm` as its package manager. If you don't have it installed, you can install
+    it with:
 
     ```sh
     npm install -g npm
@@ -122,10 +123,13 @@ To contribute to this project, you'll need to set up your local development envi
 
 2. **Set up Git hooks with Husky:**
 
-    Git hooks are automatically installed when you run `npm install` (via the `prepare` script). The project uses Husky to manage the following Git hooks:
-    - **`pre-commit`**: Runs `lint-staged` to format and lint only staged files using Prettier and ESLint
+    Git hooks are automatically installed when you run `npm install` (via the `prepare` script). The
+    project uses Husky to manage the following Git hooks:
+    - **`pre-commit`**: Runs `lint-staged` to format and lint only staged files using Prettier and
+      ESLint
     - **`pre-push`**: Runs TypeScript type checking to ensure no type errors before pushing
-    - **`post-merge`**: Automatically runs `npm install` if `package.json` or `npm.yaml` changed after a merge
+    - **`post-merge`**: Automatically runs `npm install` if `package.json` or `npm.yaml` changed
+      after a merge
 
 ### Available Scripts
 
@@ -147,3 +151,16 @@ The project maintains code quality through:
 - **Prettier** for consistent code formatting
 - **Vitest** for testing
 - **Husky + lint-staged** for automated pre-commit checks
+
+### Publishing
+
+To publish the package, on your machine run following sequence of commands:
+
+```sh
+npm version patch   # or minor, or major – this updates package.json and package-lock.json with new version
+git push            # push commit with new version
+git push --tags     # push tags, this will trigger publishing workflow
+```
+
+> **NOTE:** To publish the package, you must be in [Recombine AI](https://github.com/recombine-ai)
+> GitHub organization.
