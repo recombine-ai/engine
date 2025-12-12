@@ -154,7 +154,7 @@ The project maintains code quality through:
 
 ### Publishing
 
-To publish the package, on your machine run following sequence of commands:
+To publish the package, on your machine in **main** branch run following sequence of commands:
 
 ```sh
 npm version patch   # or minor, or major – this updates package.json and package-lock.json with new version
