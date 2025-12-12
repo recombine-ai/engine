@@ -1,6 +1,6 @@
 # Changelog
 
-### 0.8.8 → 0.8.9 (unstable)
+### 0.8.8 → 0.9.0 (unstable)
 
 - All OpenAI structured outputs calls are now strict by default
 
