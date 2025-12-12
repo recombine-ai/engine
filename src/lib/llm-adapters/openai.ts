@@ -30,6 +30,7 @@ export function createOpenAIAdapter(
                     json_schema: {
                         name: 'detector_response',
                         schema: zodToJsonSchema(schema),
+                        strict: true,
                     },
                 }
             }
