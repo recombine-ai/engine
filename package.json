@@ -1,7 +1,10 @@
 {
     "name": "@recombine-ai/engine",
-    "version": "0.8.4",
+    "version": "0.8.8",
     "description": "Recombine AI engine for creating conversational AI agents",
+    "repository": {
+        "url": "https://github.com/recombine-ai/engine"
+    },
     "main": "build/index.js",
     "types": "build/index.d.ts",
     "author": "Recombine AI limited",
@@ -13,12 +16,13 @@
         "typecheck": "tsc --noEmit",
         "prepublishOnly": "npm run build",
         "test": "vitest",
-        "docs": "cd docusaurus && yarn build --out-dir ../docs && cd ..",
+        "docs": "cd docusaurus && npm run build --out-dir ../docs && cd ..",
         "lint": "eslint",
         "lint:fix": "eslint --fix",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "prepare": "husky"
+        "prepare": "husky",
+        "precommit-hook": "lint-staged"
     },
     "devDependencies": {
         "@eslint/js": "^9.26.0",

@@ -1,5 +1,5 @@
 # Build and typecheck
-yarn -s typecheck || {
+npm run typecheck --silent || {
   echo "Typecheck failed — aborting push."
   exit 1
 }

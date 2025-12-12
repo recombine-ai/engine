@@ -1,8 +1,12 @@
 # Changelog
 
-### 0.8.7 → 0.8.8 (unstable)
+### 0.8.8 → 0.8.9 (unstable)
 
 - All OpenAI structured outputs calls are now strict by default
+
+### 0.8.7 → 0.8.8 (unstable)
+
+- Better logging for structured response parsing errors
 
 ### 0.8.6 → 0.8.7 (unstable)
 

@@ -1,0 +1,43 @@
+name: 'Publish to NPM'
+
+on:
+    push:
+        tags:
+            - 'v*.*.*'
+
+permissions:
+    id-token: write
+    contents: read
+
+env:
+    NODE_VERSION: 20
+
+jobs:
+    publish:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: 'Setup Node'
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  cache: 'npm'
+                  registry-url: 'https://registry.npmjs.org'
+
+            # Ensure npm 11.5.1 or later is installed
+            - name: Update npm
+              run: npm install -g npm@latest
+
+            - name: 'Install dependencies'
+              # TODO rm --legacy-peer-deps as soon as zod stuff fixed
+              run: npm ci --legacy-peer-deps
+
+            - name: 'Build'
+              run: npm run build
+
+            - name: 'Publish to npm'
+              run: npm publish --access public

@@ -17,19 +17,19 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: 24
-                  cache: 'yarn'
+                  cache: 'npm'
 
             - name: Install dependencies
-              run: yarn install --frozen-lockfile
+              run: npm ci --legacy-peer-deps
 
             - name: Run lint
-              run: yarn -s lint --quiet
+              run: npm run lint --silent
 
             - name: Run formatter check
-              run: yarn -s format:check
+              run: npm run format:check
 
             - name: Run typecheck
-              run: yarn -s typecheck
+              run: npm run typecheck
 
             - name: Run tests
-              run: yarn test
+              run: npm test
