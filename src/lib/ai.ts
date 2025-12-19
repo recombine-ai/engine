@@ -525,7 +525,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                     ignoreAddedMessages: step.ignoreAddedMessages,
                 })
                 stepTrace.stringifiedConversation = stringifiedMessages
-                stepTracer.addStepTrace(stepTrace)
+
                 if ('schema' in step) {
                     const stringResponse = await runLLM(
                         step.model,
@@ -534,6 +534,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                         step.schema,
                     )
                     try {
+                        stepTrace.response = stringResponse
                         response = step.schema.parse(JSON.parse(stringResponse))
                     } catch (err) {
                         logger.error(`AI-generated response in step ${step.name} violates schema`, {
@@ -545,10 +546,12 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                     }
                 } else {
                     response = await runLLM(step.model, prompt, stringifiedMessages, undefined)
+                    stepTrace.response = response
                 }
                 if (!response) {
                     throw new Error('No response from OpenAI')
                 }
+                stepTracer.addStepTrace(stepTrace)
                 logger.log(`AI Engine, executing ${step.name}`)
                 await step.execute(response, conversation, ctx, state)
             } catch (error) {
