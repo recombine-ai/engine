@@ -1,5 +1,9 @@
 # Changelog
 
+### 0.9.0 → 0.9.1 (unstable)
+
+- Fix 'response' step trace
+
 ### 0.8.8 → 0.9.0 (unstable)
 
 - All OpenAI structured outputs calls are now strict by default
