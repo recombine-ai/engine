@@ -36,7 +36,7 @@ export type ApiCallTrace = {
     error?: unknown
 
     /** Timestamp in milliseconds */
-    createdAt?: number
+    createdAt: number
 }
 
 export interface ApiCallTracer {

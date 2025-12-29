@@ -498,6 +498,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 name: step.name,
                 workflowId: name,
                 workflowRunId: state.runId,
+                createdAt: Date.now(),
                 model:
                     typeof step.model === 'string'
                         ? step.model

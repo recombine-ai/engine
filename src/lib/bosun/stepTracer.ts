@@ -30,7 +30,7 @@ export type StepTrace = {
     response?: string
 
     /** Timestamp in milliseconds */
-    createdAt?: number
+    createdAt: number
 
     error?: Error
 }
