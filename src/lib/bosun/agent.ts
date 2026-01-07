@@ -35,14 +35,13 @@ export interface TestAgentFactoryProps<CTX extends DefaultContext = DefaultConte
     /**
      * Optional tracer for recording API calls (e.g. generated OpenAPI SDK operations).
      *
-     * Workflows should pass this down (scoped with a `callId`) so Bosun/Telescope UIs can render API calls
-     * in the same per-call timeline as step traces.
+     * Workflows should pass this down (scoped with a `conversationId`) so Bosun/Telescope UIs can render API calls in the same per-call timeline as step traces.
      */
     apiCallTracer?: ApiCallTracer
     /**
      * Optional tracer for recording conversational events (messages, streaming markers, etc).
      *
-     * Workflows should pass this down (scoped with a `callId`) so UIs can render a mixed per-call timeline.
+     * Workflows should pass this down (scoped with a `conversationId`) so UIs can render a mixed per-conversation timeline.
      */
     conversationalTracer?: ConversationalTracer
     stepTracer: StepTracer

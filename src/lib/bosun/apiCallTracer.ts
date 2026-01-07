@@ -12,11 +12,12 @@ export type ApiCallTrace = {
     traceId?: string
 
     /** Identifier used to group traces to the same call/conversation */
-    callId?: string
+    conversationId?: string
 
     /** Optional, to group traces within a broader context */
     scopeId?: string
 
+    /** Human-readable operation name */
     operationName: string
     method: string
     path: string
