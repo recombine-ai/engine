@@ -552,15 +552,24 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 if (!response) {
                     throw new Error('No response from OpenAI')
                 }
-                stepTracer.addStepTrace(stepTrace)
                 logger.log(`AI Engine, executing ${step.name}`)
                 await step.execute(response, conversation, ctx, state)
-            } catch (error) {
-                await (step.onError
-                    ? step.onError((error as Error).message, ctx)
-                    : onError((error as Error).message, ctx))
-                stepTracer.addStepTrace(stepTrace)
+            } catch (err) {
+                const error = err instanceof Error ? err : new Error(String(err))
+                stepTrace.error = error
+                try {
+                    await (step.onError
+                        ? step.onError(error.message, ctx)
+                        : onError(error.message, ctx))
+                } catch (onErrorErr) {
+                    logger.error('AI Engine, onError handler failed', {
+                        err: onErrorErr,
+                        stepName: step.name,
+                    })
+                }
                 state.terminate()
+            } finally {
+                stepTracer.addStepTrace(stepTrace)
             }
         }
 
