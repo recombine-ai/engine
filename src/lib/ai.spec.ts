@@ -560,7 +560,7 @@ describe('workflow.run', () => {
                 expect.any(Object),
             )
         })
-        it('adds second trace on error path and terminates', async () => {
+        it('records a single trace on error path and terminates', async () => {
             const stepTracer = makeStepTracer()
             const engine = makeAi(stepTracer)
             const failingStep = engine.getStepBuilder()({
@@ -575,7 +575,11 @@ describe('workflow.run', () => {
             const conversation = engine.createConversation([])
             const result = await wf.run(conversation, {})
 
-            expect(stepTracer.addStepTrace).toHaveBeenCalledTimes(2)
+            expect(stepTracer.addStepTrace).toHaveBeenCalledTimes(1)
+            const trace = stepTracer.addStepTrace.mock.calls[0][0]
+            expect(trace.name).toBe('fail-step')
+            expect(trace.error).toBeInstanceOf(Error)
+            expect(trace.error?.message).toBe('boom')
             expect(failingStep.onError).toHaveBeenCalled()
             expect(result).toBeNull()
         })

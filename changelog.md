@@ -1,5 +1,12 @@
 # Changelog
 
+### 0.9.0 → 0.10.0 (unstable)
+
+- Traces now require a 'createdAt' timestamp
+- Added ApiCallTrace
+- Added ConversationalTrace
+- Improved error handling in StepTrace
+
 ### 0.9.0 → 0.9.1 (unstable)
 
 - Fix 'response' step trace

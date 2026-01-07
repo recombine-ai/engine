@@ -6,7 +6,7 @@ import zodToJsonSchema from 'zod-to-json-schema'
 export type StepTrace = {
     /** Unique ID for the trace */
     traceId?: string
-    callId?: string
+    conversationId?: string
 
     /** Optional, to group traces within a broader context */
     scopeId?: string
@@ -30,7 +30,9 @@ export type StepTrace = {
     response?: string
 
     /** Timestamp in milliseconds */
-    createdAt?: number
+    createdAt: number
+
+    error?: Error
 }
 
 export interface StepTracer {
