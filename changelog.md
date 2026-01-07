@@ -1,5 +1,9 @@
 # Changelog
 
+### 0.10.0 → 0.10.1 (unstable)
+
+- pinned zod-to-json-schema version
+
 ### 0.9.0 → 0.10.0 (unstable)
 
 - Traces now require a 'createdAt' timestamp
