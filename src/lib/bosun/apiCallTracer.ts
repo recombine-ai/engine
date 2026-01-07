@@ -5,7 +5,7 @@ import { Logger } from '../interfaces'
  *
  * The OpenAPI SDK can describe *what* was called (operation/method/path + inputs) but it typically cannot infer
  * your domain "call"/"conversation" identifier. To get a per-call UI timeline, scope your tracer in the app
- * layer by injecting `callId` onto every `ApiCallTrace` before passing it to the SDK.
+ * layer by injecting `conversationId` onto every `ApiCallTrace` before passing it to the SDK.
  */
 export type ApiCallTrace = {
     /** Unique ID for the trace */
