@@ -1,6 +1,6 @@
 # Changelog
 
-### 0.10.0 → 0.10.1 (unstable)
+### 0.10.0 → 0.10.2 (unstable)
 
 - pinned zod-to-json-schema version
 
