@@ -9,3 +9,5 @@ export * from './lib/bosun'
 export * from './lib/prompt-fs'
 
 export * from './lib/llm-adapters'
+
+export * from './lib/stream-engine'
