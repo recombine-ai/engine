@@ -33,9 +33,24 @@ function makeStepTracer() {
     }
 }
 
+function makeStepRegistry() {
+    return {
+        addStep: vi.fn(),
+    }
+}
+
+function createTestAI(overrides: Partial<Parameters<typeof createAIEngine>[0]> = {}) {
+    return createAIEngine({
+        logger: { ...console, debug: noop, error: noop },
+        stepTracer: makeStepTracer(),
+        stepRegistry: makeStepRegistry(),
+        ...overrides,
+    })
+}
+
 describe('conversationExample', () => {
     it('outputs conversation string ignoring added messages', () => {
-        const engine = createAIEngine()
+        const engine = createTestAI()
         const conversation = engine.createConversation([
             {
                 sender: 'user',
@@ -63,7 +78,7 @@ describe('conversationExample', () => {
     })
 
     it('outputs full conversation string including added messages and proposed reply', () => {
-        const engine = createAIEngine()
+        const engine = createTestAI()
         const conversation = engine.createConversation([
             {
                 sender: 'user',
@@ -160,9 +175,7 @@ describe('workflow.run', () => {
                 },
             },
         })
-        const ai = createAIEngine({
-            logger: { ...console, debug: noop, error: noop },
-        })
+        const ai = createTestAI()
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
 
@@ -210,7 +223,7 @@ describe('workflow.run', () => {
             chat: { completions: { create: createMock } },
         })
 
-        const ai = createAIEngine({ logger: { ...console, debug: noop, error: noop } })
+        const ai = createTestAI()
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
 
@@ -244,10 +257,7 @@ describe('workflow.run', () => {
 
     it('adds adapter options to step trace model as JSON string', async () => {
         const stepTracer = makeStepTracer()
-        const ai = createAIEngine({
-            stepTracer,
-            logger: { ...console, debug: noop, error: noop },
-        })
+        const ai = createTestAI({ stepTracer })
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
 
@@ -255,6 +265,7 @@ describe('workflow.run', () => {
         const adapter = {
             getOptions: () => options,
             generateResponse: async () => 'ok',
+            streamResponse: async () => (async function* () {})(),
         }
 
         const s = step({ name: 's', prompt: 'P', model: adapter, execute: vi.fn() })
@@ -282,7 +293,7 @@ describe('workflow.run', () => {
             chat: { completions: { create: createMock } },
         })
 
-        const ai = createAIEngine({ logger: { ...console, debug: noop, error: noop } })
+        const ai = createTestAI()
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
 
@@ -316,7 +327,7 @@ describe('workflow.run', () => {
             chat: { completions: { create: createMock } },
         })
 
-        const ai = createAIEngine({ logger: { ...console, debug: noop, error: noop } })
+        const ai = createTestAI()
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
 
@@ -502,7 +513,7 @@ describe('workflow.run', () => {
 
     describe('stepTracer integration', () => {
         function makeAi(stepTracer: ReturnType<typeof makeStepTracer>) {
-            return createAIEngine({
+            return createTestAI({
                 logger: { ...console, debug: vi.fn(), error: vi.fn() },
                 tokenStorage: { getToken: () => Promise.resolve('__TESTING__') },
                 stepTracer,
@@ -601,10 +612,7 @@ describe('workflow.run', () => {
 })
 
 function getAi(tracer = { addStep: noop }) {
-    const ai = createAIEngine({
-        tracer,
-        logger: { ...console, debug: noop, error: noop },
-    })
+    const ai = createTestAI({ stepRegistry: tracer })
     const step = ai.getStepBuilder()
     const cnv = ai.createConversation([])
     return { ai, step, cnv }

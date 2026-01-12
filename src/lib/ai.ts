@@ -6,11 +6,11 @@ import { ZodSchema, ZodTypeAny } from 'zod'
 import { Logger } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
 import { PromptFile } from './prompt-fs'
-import { createStubStepTracer, StepTrace, StepTracer } from './bosun/stepTracer'
-import { createStubRegistry, stdPrompt, StepRegistry, Tracer } from './bosun/tracer'
+import { StepTrace, StepTracer } from './bosun/stepTracer'
+import { stdPrompt, StepRegistry, Tracer } from './bosun/tracer'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { createOpenAIAdapter } from './llm-adapters/openai'
-import { createAIStreamEngine, type AIStreamEngine, type StreamEngineConfig } from './stream-engine'
+import { createStreamingEngine, type AIStreamEngine } from './stream-engine'
 
 /**
  * Represents a basic model name for LLMs.
@@ -403,15 +403,17 @@ export interface EngineConfig {
      */
     tokenStorage?: { getToken: () => Promise<string | null> }
     /**
-     * Optional logger instance for handling log messages.
+     * Logger instance for handling log messages.
      */
-    logger?: Logger
+    logger: Logger
     /**
      * Optional function for sending actions.
+     *
+     * @deprecated SendAction is a legacy integration; prefer workflow-level tracing instead.
      */
     sendAction?: SendAction
     /** traces received prompt, rendered prompt, context and other useful info about LLM execution */
-    stepTracer?: StepTracer
+    stepTracer: StepTracer
     /**
      * registers steps in workflow
      * @deprecated use `stepRegistry` instead
@@ -421,22 +423,7 @@ export interface EngineConfig {
     /**
      * registers steps in workflow
      */
-    stepRegistry?: StepRegistry
-
-    /**
-     * Optional streaming engine configuration, enabling {@link AIEngineWithStreaming.createStreamingWorkflow}.
-     */
-    streaming?: EngineStreamingConfig
-}
-
-export type EngineStreamingConfig = Omit<
-    StreamEngineConfig,
-    'logger' | 'stepTracer' | 'stepRegistry'
->
-
-export type EngineConfigWithStreaming = EngineConfig & {
-    streaming: EngineStreamingConfig
-    stepTracer: StepTracer
+    stepRegistry: StepRegistry
 }
 
 /**
@@ -464,26 +451,20 @@ export type EngineConfigWithStreaming = EngineConfig & {
  * const reply = await workflow.run(conversation);
  * ```
  */
-export function createAIEngine(cfg: EngineConfigWithStreaming): AIEngineWithStreaming
-export function createAIEngine(cfg?: EngineConfig): AIEngine
-export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
-    const logger = cfg.logger || globalThis.console
-    const stepTracer = cfg.stepTracer || createStubStepTracer(logger)
-    const registry = cfg.stepRegistry || cfg.tracer || createStubRegistry(logger)
+export function createAIEngine(cfg: EngineConfig): AIEngineWithStreaming {
+    const logger = cfg.logger
+    const stepTracer = cfg.stepTracer
+    const registry = cfg.stepRegistry || cfg.tracer
+    if (!registry) {
+        throw new Error('createAIEngine: stepRegistry is required')
+    }
     // tokenStorage is used by the default adapter to fetch API keys (backwards compatible)
 
-    if (cfg.streaming && !cfg.stepTracer) {
-        throw new Error('createAIEngine: stepTracer is required when streaming is configured')
-    }
-
-    const streamAi = cfg.streaming
-        ? createAIStreamEngine({
-              ...cfg.streaming,
-              logger,
-              stepTracer,
-              stepRegistry: registry,
-          })
-        : null
+    const streamAi = createStreamingEngine({
+        logger,
+        stepTracer,
+        stepRegistry: registry,
+    })
 
     function createWorkflow<CTX extends object>({
         onError,
@@ -656,19 +637,14 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         return adapter.generateResponse(systemPrompt, messages, schema)
     }
 
-    const engine: AIEngine = {
+    const engine: AIEngineWithStreaming = {
         createWorkflow,
         createConversation,
         renderPrompt,
+        createStreamingWorkflow: streamAi.createWorkflow,
         getStepBuilder() {
             return (step: any) => step
         },
-    }
-
-    if (streamAi) {
-        return Object.assign(engine, {
-            createStreamingWorkflow: streamAi.createWorkflow,
-        })
     }
 
     return engine

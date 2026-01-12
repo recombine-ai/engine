@@ -4,19 +4,12 @@ import { ReadableStream } from 'node:stream/web'
 
 import nunjucks from 'nunjucks'
 
-import type { BasicModel, LlmAdapter, Message } from './ai'
+import type { LlmAdapter, Message } from './ai'
 import type { ConversationalTrace, ConversationalTracer } from './bosun/conversationalTracer'
-import { createStubRegistry, stdPrompt, type StepRegistry } from './bosun/tracer'
+import { stdPrompt, type StepRegistry } from './bosun/tracer'
 import type { StepTrace, StepTracer } from './bosun/stepTracer'
 import type { Logger } from './interfaces'
 import type { PromptFile } from './prompt-fs'
-
-export type ChatRole = 'system' | 'user'
-
-export type ChatMessageParam = {
-    role: ChatRole
-    content: string
-}
 
 export type ChatCompletionChunk = {
     choices: Array<{
@@ -24,31 +17,10 @@ export type ChatCompletionChunk = {
     }>
 }
 
-type ChatCompletionStreamParams = {
-    messages: ChatMessageParam[]
-    model: string
-    stream: true
-    temperature?: number
-    reasoning_effort?: 'low' | 'medium' | 'high'
-    response_format?: { type: 'text' }
-}
-
-type MaybePromise<T> = T | Promise<T>
-
-export interface LlmStreamClient {
-    chat: {
-        completions: {
-            create: (
-                params: ChatCompletionStreamParams,
-            ) => MaybePromise<AsyncIterable<ChatCompletionChunk>>
-        }
-    }
-}
-
 export interface MainStep {
     name: string
     responsePrompt: string | PromptFile
-    model: BasicModel | LlmAdapter<ChatCompletionChunk>
+    model: LlmAdapter<ChatCompletionChunk>
 }
 
 interface ProgrammaticFilter {
@@ -70,7 +42,10 @@ export interface WorkFlowConfig<CTX extends {}> {
     main: MainStep
     programmaticFilter?: ProgrammaticFilter
     afterResponseDelayMs?: number
-    onMainResponseFinished?: () => void
+    conversationalTracer: ConversationalTracer
+    conversationalTraceMedium: ConversationalTrace['medium']
+    onQuotaExceeded?: (error: Error) => Promise<void>
+    onMainResponseFinished?: () => Promise<void>
     onError: (error: Error | string, ctx: CTX) => Promise<void>
 }
 
@@ -108,29 +83,28 @@ export interface LiveTranscript {
 // callId -> runId
 const currentRunsStore = new Map<string, string>()
 
-export type StreamEngineConfig = {
-    basePath?: string
+type StreamingEngineConfig = {
     logger: Logger
-    client: LlmStreamClient
     stepTracer: StepTracer
-    conversationalTracer: ConversationalTracer
-    conversationalTraceMedium: ConversationalTrace['medium']
-    stepRegistry?: StepRegistry
-    onQuotaExceeded?: (error: Error) => Promise<void>
-    onMainResponseFinished?: () => Promise<void>
+    stepRegistry: StepRegistry
+    basePath?: string
 }
 
-export function createAIStreamEngine(cfg: StreamEngineConfig): AIStreamEngine {
+export function createStreamingEngine(cfg: StreamingEngineConfig): AIStreamEngine {
     const basePath = cfg.basePath ?? process.cwd()
     cfg.logger.debug(`Base path is: ${resolve(basePath)}`)
 
-    const stepRegistry = cfg.stepRegistry ?? createStubRegistry(cfg.logger)
+    const stepRegistry = cfg.stepRegistry
 
     function createWorkflow<CTX extends {}>({
         workflowId,
         main,
         programmaticFilter,
         afterResponseDelayMs = 2000,
+        conversationalTracer,
+        conversationalTraceMedium,
+        onQuotaExceeded,
+        onMainResponseFinished,
         onError,
     }: WorkFlowConfig<CTX>) {
         cfg.logger.debug('streamAiEngine.createWorkflow')
@@ -178,8 +152,8 @@ export function createAIStreamEngine(cfg: StreamEngineConfig): AIStreamEngine {
                         const err = normalizeError(e)
                         controller.error(err)
 
-                        if (isQuotaExceededError(err) && cfg.onQuotaExceeded) {
-                            await cfg.onQuotaExceeded(err)
+                        if (isQuotaExceededError(err) && onQuotaExceeded) {
+                            await onQuotaExceeded(err)
                         }
                         await onError(err, ctx)
                     }
@@ -331,12 +305,13 @@ export function createAIStreamEngine(cfg: StreamEngineConfig): AIStreamEngine {
                         cfg.stepTracer.addStepTrace(mainStepTrace)
                         await cfg.stepTracer.flush()
 
-                        await safeAddFinishedMainStepTrace(cfg.conversationalTracer, {
+                        await safeAddFinishedMainStepTrace(conversationalTracer, {
                             conversationId: callId,
                             content: transcript.currentResponse,
+                            medium: conversationalTraceMedium,
                         })
 
-                        await cfg.onMainResponseFinished?.()
+                        await onMainResponseFinished?.()
 
                         controller.close()
 
@@ -425,40 +400,10 @@ export function createAIStreamEngine(cfg: StreamEngineConfig): AIStreamEngine {
         async function runLLMStream(input: {
             systemPrompt: string
             messages: string
-            model: BasicModel | LlmAdapter<ChatCompletionChunk>
+            model: LlmAdapter<ChatCompletionChunk>
         }): Promise<AsyncIterable<ChatCompletionChunk>> {
             cfg.logger.debug('AI Engine Stream: starting llm stream')
-
-            if (typeof input.model === 'string') {
-                return await cfg.client.chat.completions.create({
-                    messages: [
-                        { role: 'system', content: input.systemPrompt },
-                        { role: 'user', content: input.messages },
-                    ],
-                    ...getLlmOptions(input.model),
-                    stream: true,
-                })
-            }
-
             return await input.model.streamResponse(input.systemPrompt, input.messages)
-        }
-
-        function getLlmOptions(
-            model: BasicModel,
-        ): Omit<ChatCompletionStreamParams, 'messages' | 'stream'> {
-            const options: Omit<ChatCompletionStreamParams, 'messages' | 'stream'> = {
-                model,
-                response_format: { type: 'text' },
-            }
-
-            const isReasoningModel = ['o3-', 'o1-', 'o1-preview-'].some((m) => model.startsWith(m))
-            if (isReasoningModel) {
-                if (!model.startsWith('o1-preview-')) {
-                    options.reasoning_effort = 'high'
-                }
-            }
-
-            return options
         }
 
         async function renderPrompt(prompt: string | PromptFile, context: CTX) {
@@ -474,14 +419,18 @@ export function createAIStreamEngine(cfg: StreamEngineConfig): AIStreamEngine {
 
         async function safeAddFinishedMainStepTrace(
             tracer: ConversationalTracer,
-            input: { conversationId: string; content: string },
+            input: {
+                conversationId: string
+                content: string
+                medium: ConversationalTrace['medium']
+            },
         ) {
             try {
                 tracer.addConversationalTrace({
                     conversationId: input.conversationId,
                     eventName: 'finished-main-streaming-step',
                     role: 'agent',
-                    medium: cfg.conversationalTraceMedium,
+                    medium: input.medium,
                     content: input.content,
                     createdAt: Date.now(),
                 })
@@ -493,31 +442,21 @@ export function createAIStreamEngine(cfg: StreamEngineConfig): AIStreamEngine {
 
         function isQuotaExceededError(err: unknown): err is Error {
             if (!(err instanceof Error)) return false
-
-            const maybe = err as unknown as {
-                status?: unknown
-                name?: unknown
-                constructor?: { name?: unknown }
-            }
-            if (maybe.status === 429) return true
-            if (maybe.name === 'RateLimitError') return true
-            return maybe.constructor?.name === 'RateLimitError'
+            if (err.name === 'RateLimitError') return true
+            if (hasStatus(err) && err.status === 429) return true
+            return err.constructor?.name === 'RateLimitError'
         }
 
-        function getModelName(model: BasicModel | LlmAdapter): string {
-            if (typeof model === 'string') return model
+        function hasStatus(value: Error): value is Error & { status: unknown } {
+            return 'status' in value
+        }
 
+        function getModelName(model: LlmAdapter): string {
             const options = model.getOptions()
-            if (!options || typeof options !== 'object') {
-                return 'unknown'
-            }
+            if (!options || typeof options !== 'object') return 'unknown'
 
-            const maybeModel = (options as { model?: unknown }).model
-            if (typeof maybeModel === 'string') {
-                return maybeModel
-            }
-
-            return 'unknown'
+            const maybeModel = (options as Record<string, unknown>).model
+            return typeof maybeModel === 'string' ? maybeModel : 'unknown'
         }
 
         return {

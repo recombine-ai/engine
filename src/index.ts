@@ -10,4 +10,12 @@ export * from './lib/prompt-fs'
 
 export * from './lib/llm-adapters'
 
-export * from './lib/stream-engine'
+export type {
+    AfterResponseCallback,
+    AIStreamEngine,
+    ChatCompletionChunk,
+    LiveTranscript,
+    MainStep,
+    ResponseChunk,
+    WorkFlowConfig,
+} from './lib/stream-engine'
