@@ -10,7 +10,7 @@ import { StepTrace, StepTracer } from './bosun/stepTracer'
 import { stdPrompt, StepRegistry, Tracer } from './bosun/tracer'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { createOpenAIAdapter } from './llm-adapters/openai'
-import { createStreamingEngine, type AIStreamEngine } from './stream-engine'
+import { createStreamingWorkflowFactory, type CreateStreamingWorkflow } from './stream-engine'
 
 /**
  * Represents a basic model name for LLMs.
@@ -288,7 +288,7 @@ export interface AIEngine {
 }
 
 export interface AIEngineWithStreaming extends AIEngine {
-    createStreamingWorkflow: AIStreamEngine['createWorkflow']
+    createStreamingWorkflow: CreateStreamingWorkflow
 }
 
 /**
@@ -460,7 +460,7 @@ export function createAIEngine(cfg: EngineConfig): AIEngineWithStreaming {
     }
     // tokenStorage is used by the default adapter to fetch API keys (backwards compatible)
 
-    const streamAi = createStreamingEngine({
+    const createStreamingWorkflow = createStreamingWorkflowFactory({
         logger,
         stepTracer,
         stepRegistry: registry,
@@ -641,7 +641,7 @@ export function createAIEngine(cfg: EngineConfig): AIEngineWithStreaming {
         createWorkflow,
         createConversation,
         renderPrompt,
-        createStreamingWorkflow: streamAi.createWorkflow,
+        createStreamingWorkflow,
         getStepBuilder() {
             return (step: any) => step
         },

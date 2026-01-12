@@ -12,7 +12,6 @@ export * from './lib/llm-adapters'
 
 export type {
     AfterResponseCallback,
-    AIStreamEngine,
     ChatCompletionChunk,
     LiveTranscript,
     MainStep,

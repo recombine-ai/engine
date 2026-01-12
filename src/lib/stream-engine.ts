@@ -1,5 +1,3 @@
-import fs from 'node:fs'
-import { join, resolve } from 'node:path'
 import { ReadableStream } from 'node:stream/web'
 
 import nunjucks from 'nunjucks'
@@ -54,21 +52,14 @@ export type AfterResponseCallback<CTX extends {}> = (
     ctx: CTX,
 ) => Promise<void>
 
-export interface AIStreamEngine {
-    createWorkflow: <CTX extends {}>(
-        config: WorkFlowConfig<CTX>,
-    ) => {
-        run: (
-            callId: string,
-            messages: Message[],
-            ctx: CTX,
-        ) => Promise<ReadableStream<ResponseChunk>>
-        afterResponse: (callback: AfterResponseCallback<CTX>) => void
-    }
-
-    loadFile: (path: string) => PromptFile
-    createMainStep: (step: MainStep) => MainStep
+export type StreamingWorkflow<CTX extends {}> = {
+    run: (callId: string, messages: Message[], ctx: CTX) => Promise<ReadableStream<ResponseChunk>>
+    afterResponse: (callback: AfterResponseCallback<CTX>) => void
 }
+
+export type CreateStreamingWorkflow = <CTX extends {}>(
+    config: WorkFlowConfig<CTX>,
+) => StreamingWorkflow<CTX>
 
 export interface LiveTranscript {
     responseChunks: ResponseChunk[]
@@ -83,20 +74,18 @@ export interface LiveTranscript {
 // callId -> runId
 const currentRunsStore = new Map<string, string>()
 
-type StreamingEngineConfig = {
+type StreamingWorkflowFactoryConfig = {
     logger: Logger
     stepTracer: StepTracer
     stepRegistry: StepRegistry
-    basePath?: string
 }
 
-export function createStreamingEngine(cfg: StreamingEngineConfig): AIStreamEngine {
-    const basePath = cfg.basePath ?? process.cwd()
-    cfg.logger.debug(`Base path is: ${resolve(basePath)}`)
-
+export function createStreamingWorkflowFactory(
+    cfg: StreamingWorkflowFactoryConfig,
+): CreateStreamingWorkflow {
     const stepRegistry = cfg.stepRegistry
 
-    function createWorkflow<CTX extends {}>({
+    function createStreamingWorkflow<CTX extends {}>({
         workflowId,
         main,
         programmaticFilter,
@@ -467,22 +456,7 @@ export function createStreamingEngine(cfg: StreamingEngineConfig): AIStreamEngin
         }
     }
 
-    function loadFile(path: string): PromptFile {
-        return {
-            type: 'file',
-            path,
-            content: async () => {
-                cfg.logger.debug('loading prompt:', path)
-                return fs.promises.readFile(join(basePath, path), 'utf-8')
-            },
-        }
-    }
-
-    return {
-        createWorkflow,
-        loadFile,
-        createMainStep,
-    }
+    return createStreamingWorkflow
 }
 
 function normalizeError(err: unknown): Error {
@@ -553,8 +527,4 @@ function createConversation(initialMessages: Message[], logger: Logger): LiveTra
             return messages
         },
     }
-}
-
-function createMainStep(step: MainStep): MainStep {
-    return step
 }
