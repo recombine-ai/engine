@@ -10,6 +10,7 @@ import { createStubStepTracer, StepTrace, StepTracer } from './bosun/stepTracer'
 import { createStubRegistry, stdPrompt, StepRegistry, Tracer } from './bosun/tracer'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { createOpenAIAdapter } from './llm-adapters/openai'
+import { createAIStreamEngine, type AIStreamEngine, type StreamEngineConfig } from './stream-engine'
 
 /**
  * Represents a basic model name for LLMs.
@@ -23,7 +24,7 @@ export type BasicModel =
     | 'o1-2024-12-17'
     | (string & {}) // prevents compiler from simplifying the type to just `string`
 
-export interface LlmAdapter {
+export interface LlmAdapter<StreamChunk = unknown> {
     /**
      * @param systemPrompt – rendered system prompt
      * @param messages – stringified {@link Conversation}
@@ -35,6 +36,17 @@ export interface LlmAdapter {
         messages: string,
         schema?: ZodTypeAny,
     ) => Promise<string>
+    /**
+     * @param systemPrompt – rendered system prompt
+     * @param messages – stringified {@link Conversation}
+     * @param schema - optional Zod schema to pass to the model. Will overwrite any schema set in adapter options.
+     * @returns LLM Stream
+     */
+    streamResponse: (
+        systemPrompt: string,
+        messages: string,
+        schema?: ZodTypeAny,
+    ) => Promise<AsyncIterable<StreamChunk>>
     /** Returns adapter's configuration/options for tracing */
     getOptions: () => unknown
 }
@@ -275,6 +287,10 @@ export interface AIEngine {
     renderPrompt: typeof renderPrompt
 }
 
+export interface AIEngineWithStreaming extends AIEngine {
+    createStreamingWorkflow: AIStreamEngine['createWorkflow']
+}
+
 /**
  * Represents a conversation between a user and an AI agent.
  * Provides methods to manage the conversation flow, format messages, and convert the conversation
@@ -406,6 +422,21 @@ export interface EngineConfig {
      * registers steps in workflow
      */
     stepRegistry?: StepRegistry
+
+    /**
+     * Optional streaming engine configuration, enabling {@link AIEngineWithStreaming.createStreamingWorkflow}.
+     */
+    streaming?: EngineStreamingConfig
+}
+
+export type EngineStreamingConfig = Omit<
+    StreamEngineConfig,
+    'logger' | 'stepTracer' | 'stepRegistry'
+>
+
+export type EngineConfigWithStreaming = EngineConfig & {
+    streaming: EngineStreamingConfig
+    stepTracer: StepTracer
 }
 
 /**
@@ -433,11 +464,26 @@ export interface EngineConfig {
  * const reply = await workflow.run(conversation);
  * ```
  */
+export function createAIEngine(cfg: EngineConfigWithStreaming): AIEngineWithStreaming
+export function createAIEngine(cfg?: EngineConfig): AIEngine
 export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     const logger = cfg.logger || globalThis.console
     const stepTracer = cfg.stepTracer || createStubStepTracer(logger)
     const registry = cfg.stepRegistry || cfg.tracer || createStubRegistry(logger)
     // tokenStorage is used by the default adapter to fetch API keys (backwards compatible)
+
+    if (cfg.streaming && !cfg.stepTracer) {
+        throw new Error('createAIEngine: stepTracer is required when streaming is configured')
+    }
+
+    const streamAi = cfg.streaming
+        ? createAIStreamEngine({
+              ...cfg.streaming,
+              logger,
+              stepTracer,
+              stepRegistry: registry,
+          })
+        : null
 
     function createWorkflow<CTX extends object>({
         onError,
@@ -610,7 +656,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         return adapter.generateResponse(systemPrompt, messages, schema)
     }
 
-    return {
+    const engine: AIEngine = {
         createWorkflow,
         createConversation,
         renderPrompt,
@@ -618,6 +664,14 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
             return (step: any) => step
         },
     }
+
+    if (streamAi) {
+        return Object.assign(engine, {
+            createStreamingWorkflow: streamAi.createWorkflow,
+        })
+    }
+
+    return engine
 }
 
 const fallBackTokenStorage = {

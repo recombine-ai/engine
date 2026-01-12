@@ -4,7 +4,7 @@ import { ReadableStream } from 'node:stream/web'
 
 import nunjucks from 'nunjucks'
 
-import type { BasicModel, Message } from './ai'
+import type { BasicModel, LlmAdapter, Message } from './ai'
 import type { ConversationalTrace, ConversationalTracer } from './bosun/conversationalTracer'
 import { createStubRegistry, stdPrompt, type StepRegistry } from './bosun/tracer'
 import type { StepTrace, StepTracer } from './bosun/stepTracer'
@@ -48,7 +48,7 @@ export interface LlmStreamClient {
 export interface MainStep {
     name: string
     responsePrompt: string | PromptFile
-    model?: BasicModel
+    model: BasicModel | LlmAdapter<ChatCompletionChunk>
 }
 
 interface ProgrammaticFilter {
@@ -116,8 +116,6 @@ export type StreamEngineConfig = {
     conversationalTracer: ConversationalTracer
     conversationalTraceMedium: ConversationalTrace['medium']
     stepRegistry?: StepRegistry
-    defaultModel: BasicModel
-    defaultTemperature: number
     onQuotaExceeded?: (error: Error) => Promise<void>
     onMainResponseFinished?: () => Promise<void>
 }
@@ -204,12 +202,13 @@ export function createAIStreamEngine(cfg: StreamEngineConfig): AIStreamEngine {
             let currentFilter: ProgrammaticFilter | null = null
             let filteredTokens: string[] = []
 
-            const model = main.model ?? cfg.defaultModel
+            const model = main.model
+            const modelName = getModelName(model)
             const mainStepTrace: StepTrace = {
                 workflowId,
                 workflowRunId: runId,
                 name: main.name,
-                model,
+                model: modelName,
                 conversationId: callId,
                 receivedContext: ctx,
                 receivedPrompt: main.responsePrompt,
@@ -426,18 +425,22 @@ export function createAIStreamEngine(cfg: StreamEngineConfig): AIStreamEngine {
         async function runLLMStream(input: {
             systemPrompt: string
             messages: string
-            model: BasicModel
+            model: BasicModel | LlmAdapter<ChatCompletionChunk>
         }): Promise<AsyncIterable<ChatCompletionChunk>> {
             cfg.logger.debug('AI Engine Stream: starting llm stream')
 
-            return await cfg.client.chat.completions.create({
-                messages: [
-                    { role: 'system', content: input.systemPrompt },
-                    { role: 'user', content: input.messages },
-                ],
-                ...getLlmOptions(input.model),
-                stream: true,
-            })
+            if (typeof input.model === 'string') {
+                return await cfg.client.chat.completions.create({
+                    messages: [
+                        { role: 'system', content: input.systemPrompt },
+                        { role: 'user', content: input.messages },
+                    ],
+                    ...getLlmOptions(input.model),
+                    stream: true,
+                })
+            }
+
+            return await input.model.streamResponse(input.systemPrompt, input.messages)
         }
 
         function getLlmOptions(
@@ -453,8 +456,6 @@ export function createAIStreamEngine(cfg: StreamEngineConfig): AIStreamEngine {
                 if (!model.startsWith('o1-preview-')) {
                     options.reasoning_effort = 'high'
                 }
-            } else {
-                options.temperature = cfg.defaultTemperature
             }
 
             return options
@@ -501,6 +502,22 @@ export function createAIStreamEngine(cfg: StreamEngineConfig): AIStreamEngine {
             if (maybe.status === 429) return true
             if (maybe.name === 'RateLimitError') return true
             return maybe.constructor?.name === 'RateLimitError'
+        }
+
+        function getModelName(model: BasicModel | LlmAdapter): string {
+            if (typeof model === 'string') return model
+
+            const options = model.getOptions()
+            if (!options || typeof options !== 'object') {
+                return 'unknown'
+            }
+
+            const maybeModel = (options as { model?: unknown }).model
+            if (typeof maybeModel === 'string') {
+                return maybeModel
+            }
+
+            return 'unknown'
         }
 
         return {
