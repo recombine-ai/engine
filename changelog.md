@@ -1,5 +1,9 @@
 # Changelog
 
+### 0.9.1 → 0.9.2 (unstable)
+
+- pin `zod-to-json-schema` version
+
 ### 0.9.0 → 0.9.1 (unstable)
 
 - Fix 'response' step trace
