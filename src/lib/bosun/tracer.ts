@@ -1,4 +1,4 @@
-import { ZodSchema } from 'zod'
+import { z } from 'zod'
 import { PromptFile } from '../prompt-fs'
 import { Logger } from '../interfaces'
 
@@ -11,7 +11,7 @@ export interface StepDef {
     name: string
     type: 'streaming-response' | 'streaming-detect' | 'text'
     prompt: PromptFile | PromptString
-    schema?: ZodSchema
+    schema?: z.ZodType
 }
 
 /**

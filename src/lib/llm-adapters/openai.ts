@@ -2,8 +2,7 @@ import { AzureOpenAI, OpenAI } from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { LlmAdapter } from '../ai'
-import { ZodTypeAny } from 'zod'
-import zodToJsonSchema from 'zod-to-json-schema'
+import { z } from 'zod'
 
 export type OpenAIChatOptions = Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'>
 
@@ -28,7 +27,7 @@ export function createOpenAIAdapter(
         async generateResponse(
             systemPrompt: string,
             messages: string,
-            schema?: ZodTypeAny,
+            schema?: z.ZodType,
         ): Promise<string> {
             const finalOptions = { ...options }
             if (schema) {
@@ -36,7 +35,7 @@ export function createOpenAIAdapter(
                     type: 'json_schema',
                     json_schema: {
                         name: 'detector_response',
-                        schema: zodToJsonSchema(schema),
+                        schema: z.toJSONSchema(schema),
                         strict: true,
                     },
                 }
@@ -71,7 +70,7 @@ export function createOpenAIAdapter(
         async streamResponse(
             systemPrompt: string,
             messages: string,
-            schema?: ZodTypeAny,
+            schema?: z.ZodType,
         ): Promise<AsyncIterable<ChatCompletionChunk>> {
             // TODO: This adapter is copy-pasted from an earlier implementation; consolidate shared logic with `generateResponse`.
             const finalOptions = { ...options }
@@ -80,7 +79,7 @@ export function createOpenAIAdapter(
                     type: 'json_schema',
                     json_schema: {
                         name: 'detector_response',
-                        schema: zodToJsonSchema(schema),
+                        schema: z.toJSONSchema(schema),
                         strict: true,
                     },
                 }
@@ -137,7 +136,7 @@ export function createAzureOpenAIAdapter(
         async generateResponse(
             systemPrompt: string,
             messages: string,
-            schema?: ZodTypeAny,
+            schema?: z.ZodType,
         ): Promise<string> {
             const finalOptions = { ...options }
             if (schema) {
@@ -145,7 +144,7 @@ export function createAzureOpenAIAdapter(
                     type: 'json_schema',
                     json_schema: {
                         name: 'detector_response',
-                        schema: zodToJsonSchema(schema),
+                        schema: z.toJSONSchema(schema),
                         strict: true,
                     },
                 }
@@ -185,7 +184,7 @@ export function createAzureOpenAIAdapter(
         async streamResponse(
             systemPrompt: string,
             messages: string,
-            schema?: ZodTypeAny,
+            schema?: z.ZodType,
         ): Promise<AsyncIterable<ChatCompletionChunk>> {
             // TODO: This adapter is copy-pasted from an earlier implementation; consolidate shared logic with `generateResponse`.
             const finalOptions = { ...options }
@@ -194,7 +193,7 @@ export function createAzureOpenAIAdapter(
                     type: 'json_schema',
                     json_schema: {
                         name: 'detector_response',
-                        schema: zodToJsonSchema(schema),
+                        schema: z.toJSONSchema(schema),
                         strict: true,
                     },
                 }

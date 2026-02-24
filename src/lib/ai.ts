@@ -2,13 +2,12 @@
 import { randomUUID } from 'crypto'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import nunjucks from 'nunjucks'
-import { ZodSchema, ZodTypeAny } from 'zod'
+import { z } from 'zod'
 import { Logger } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
 import { PromptFile } from './prompt-fs'
 import { StepTrace, StepTracer } from './bosun/stepTracer'
 import { stdPrompt, StepRegistry, Tracer } from './bosun/tracer'
-import { zodToJsonSchema } from 'zod-to-json-schema'
 import { createOpenAIAdapter } from './llm-adapters/openai'
 import { createStreamingWorkflowFactory, type CreateStreamingWorkflow } from './stream-engine'
 
@@ -34,7 +33,7 @@ export interface LlmAdapter<StreamChunk = unknown> {
     generateResponse: (
         systemPrompt: string,
         messages: string,
-        schema?: ZodTypeAny,
+        schema?: z.ZodType,
     ) => Promise<string>
     /**
      * @param systemPrompt – rendered system prompt
@@ -45,7 +44,7 @@ export interface LlmAdapter<StreamChunk = unknown> {
     streamResponse: (
         systemPrompt: string,
         messages: string,
-        schema?: ZodTypeAny,
+        schema?: z.ZodType,
     ) => Promise<AsyncIterable<StreamChunk>>
     /** Returns adapter's configuration/options for tracing */
     getOptions: () => unknown
@@ -105,7 +104,7 @@ export interface WorkflowControls {
     rewindTo: (step: string) => void
 }
 
-export interface JsonLLMStep<CTX, Schema extends ZodTypeAny> extends LLMStep<CTX> {
+export interface JsonLLMStep<CTX, Schema extends z.ZodType> extends LLMStep<CTX> {
     /**
      * Defines the expected structure of the LLM's output. Accepts ZodSchema. When provided, the
      * LLM's response is validated and parsed according to this schema ensuring reliable structured
@@ -128,7 +127,7 @@ export interface JsonLLMStep<CTX, Schema extends ZodTypeAny> extends LLMStep<CTX
      * ```
      */
     execute: (
-        reply: Zod.infer<Schema>,
+        reply: z.infer<Schema>,
         conversation: Conversation,
         ctx: CTX,
         workflowControls: WorkflowControls,
@@ -186,7 +185,7 @@ export interface Workflow<CTX> {
     /**
      * Add a step to workflow
      */
-    addStep<Schema extends ZodTypeAny>(step: JsonLLMStep<CTX, Schema>): void
+    addStep<Schema extends z.ZodType>(step: JsonLLMStep<CTX, Schema>): void
     addStep(step: StringLLMStep<CTX>): void
     addStep(step: ProgrammaticStep<CTX>): void
 }
@@ -201,7 +200,7 @@ export interface WorkflowConfig<CTX> {
 }
 
 interface StepBuilder<CTX> {
-    <Schema extends ZodTypeAny>(step: JsonLLMStep<CTX, Schema>): JsonLLMStep<CTX, Schema>
+    <Schema extends z.ZodType>(step: JsonLLMStep<CTX, Schema>): JsonLLMStep<CTX, Schema>
     (step: StringLLMStep<CTX>): StringLLMStep<CTX>
     (step: ProgrammaticStep<CTX>): ProgrammaticStep<CTX>
 }
@@ -532,12 +531,7 @@ export function createAIEngine(cfg: EngineConfig): AIEngineWithStreaming {
                         : step.model
                           ? JSON.stringify(step.model.getOptions())
                           : 'default',
-                schema:
-                    'schema' in step
-                        ? step.schema instanceof ZodSchema
-                            ? step.schema
-                            : undefined
-                        : undefined,
+                schema: 'schema' in step ? step.schema : undefined,
             }
 
             try {
@@ -567,7 +561,7 @@ export function createAIEngine(cfg: EngineConfig): AIEngineWithStreaming {
                     } catch (err) {
                         logger.error(`AI-generated response in step ${step.name} violates schema`, {
                             response: stringResponse,
-                            schema: zodToJsonSchema(step.schema),
+                            schema: z.toJSONSchema(step.schema),
                             errors: step.schema.safeParse(response).error,
                         })
                         throw new Error(`Response validation failed for step ${step.name}`)
@@ -626,7 +620,7 @@ export function createAIEngine(cfg: EngineConfig): AIEngineWithStreaming {
         model: BasicModel | LlmAdapter | undefined,
         systemPrompt: string,
         messages: string,
-        schema?: ZodSchema,
+        schema?: z.ZodType,
     ) {
         const adapter: LlmAdapter =
             typeof model === 'string' || model === undefined
@@ -709,7 +703,7 @@ class WorkflowState<CTX> {
     }
 }
 
-function getOpenAiOptions(model: BasicModel, schema?: ZodSchema) {
+function getOpenAiOptions(model: BasicModel, schema?: z.ZodType) {
     const options: Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'> = {
         model,
     }
@@ -727,7 +721,7 @@ function getOpenAiOptions(model: BasicModel, schema?: ZodSchema) {
             type: 'json_schema',
             json_schema: {
                 name: 'detector_response',
-                schema: zodToJsonSchema(schema),
+                schema: z.toJSONSchema(schema),
             },
         }
     } else {
