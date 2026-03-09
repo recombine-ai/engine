@@ -194,6 +194,123 @@ describe('workflow.run', () => {
         )
     })
 
+    it('executes smart steps with corrupted JSON parsed response', async () => {
+        // We set a non-__TESTING__ value so the adapter does not short-circuit
+        // and we can assert the exact payload passed to OpenAI's client.
+        const prev = process.env.OPENAI_API_KEY
+        process.env.OPENAI_API_KEY = 'mocked'
+        const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
+        OpenAI.mockReturnValue({
+            chat: {
+                completions: {
+                    create: vi.fn(() => ({
+                        choices: [
+                            {
+                                message: {
+                                    content: '{"name": "John", age: 30}', // Corrupted JSON with an extra quote
+                                },
+                            },
+                        ],
+                    })),
+                },
+            },
+        })
+        const ai = createAIEngine({
+            logger: { ...console, debug: noop, error: noop },
+        })
+        const step = ai.getStepBuilder()
+        const cnv = ai.createConversation([])
+
+        const testSchema = z.object({
+            name: z.string(),
+            age: z.number(),
+        })
+
+        const smartStep = step({
+            name: 'smart-step',
+            schema: testSchema,
+            prompt: 'Get user info',
+            execute: vi.fn(),
+        })
+
+        const mockOnError = vi.fn().mockResolvedValue(undefined)
+        const wf = ai.createWorkflow({
+            steps: [smartStep],
+            onError: mockOnError,
+        })
+
+        await wf.run(cnv, {})
+        process.env.OPENAI_API_KEY = prev
+
+        expect(smartStep.execute).not.toHaveBeenCalled()
+        expect(mockOnError).toHaveBeenCalledOnce()
+        expect(mockOnError).toHaveBeenCalledWith(
+            expect.stringContaining(`Response is not valid JSON for step ${step.name}`),
+            expect.anything(),
+        )
+    })
+
+    it('executes smart steps with a violated JSON response for the Zod schema', async () => {
+        // We set a non-__TESTING__ value so the adapter does not short-circuit
+        // and we can assert the exact payload passed to OpenAI's client.
+        const prev = process.env.OPENAI_API_KEY
+        process.env.OPENAI_API_KEY = 'mocked'
+        const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
+        OpenAI.mockReturnValue({
+            chat: {
+                completions: {
+                    create: vi.fn(() => ({
+                        choices: [
+                            {
+                                message: {
+                                    content: JSON.stringify({
+                                        name: 'John',
+                                        age: 30,
+                                        isMarried: 'no',
+                                    }),
+                                },
+                            },
+                        ],
+                    })),
+                },
+            },
+        })
+        const ai = createAIEngine({
+            logger: { ...console, debug: noop, error: noop },
+        })
+        const step = ai.getStepBuilder()
+        const cnv = ai.createConversation([])
+
+        const testSchema = z.object({
+            name: z.string(),
+            age: z.number(),
+            isMarried: z.boolean(),
+        })
+
+        const smartStep = step({
+            name: 'smart-step',
+            schema: testSchema,
+            prompt: 'Get user info',
+            execute: vi.fn(),
+        })
+
+        const mockOnError = vi.fn().mockResolvedValue(undefined)
+        const wf = ai.createWorkflow({
+            steps: [smartStep],
+            onError: mockOnError,
+        })
+
+        await wf.run(cnv, {})
+        process.env.OPENAI_API_KEY = prev
+
+        expect(smartStep.execute).not.toHaveBeenCalled()
+        expect(mockOnError).toHaveBeenCalledOnce()
+        expect(mockOnError).toHaveBeenCalledWith(
+            expect.stringContaining(`Response validation failed for step ${step.name}`),
+            expect.anything(),
+        )
+    })
+
     it('passes explicit adapter options to OpenAI', async () => {
         // Use a non-__TESTING__ value to force client invocation and inspect options
         const prev = process.env.OPENAI_API_KEY

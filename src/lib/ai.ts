@@ -534,16 +534,33 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                         stringifiedMessages,
                         step.schema,
                     )
+                    stepTrace.response = stringResponse
+
+                    let parsedJsonResponse: unknown = undefined
                     try {
-                        stepTrace.response = stringResponse
-                        response = step.schema.parse(JSON.parse(stringResponse))
+                        parsedJsonResponse = JSON.parse(stringResponse)
+                        response = step.schema.parse(parsedJsonResponse)
                     } catch (err) {
-                        logger.error(`AI-generated response in step ${step.name} violates schema`, {
-                            response: stringResponse,
-                            schema: zodToJsonSchema(step.schema),
-                            errors: step.schema.safeParse(response).error,
-                        })
-                        throw new Error(`Response validation failed for step ${step.name}`)
+                        if (err instanceof SyntaxError) {
+                            logger.error(
+                                `AI-generated response is not valid JSON in step ${step.name}`,
+                                {
+                                    response: stringResponse,
+                                    schema: zodToJsonSchema(step.schema),
+                                },
+                            )
+                            throw new Error(`Response is not valid JSON for step ${step.name}`)
+                        } else {
+                            logger.error(
+                                `AI-generated response in step ${step.name} violates schema`,
+                                {
+                                    response: stringResponse,
+                                    schema: zodToJsonSchema(step.schema),
+                                    errors: step.schema.safeParse(parsedJsonResponse).error,
+                                },
+                            )
+                            throw new Error(`Response validation failed for step ${step.name}`)
+                        }
                     }
                 } else {
                     response = await runLLM(step.model, prompt, stringifiedMessages, undefined)
