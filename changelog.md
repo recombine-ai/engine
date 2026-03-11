@@ -1,5 +1,9 @@
 # Changelog
 
+### 0.10.2 → 0.10.3 (unstable)
+
+- Enhanced error handling for AI-generated responses in `runStep`.
+
 ### 0.10.0 → 0.10.2 (unstable)
 
 - pinned zod-to-json-schema version
