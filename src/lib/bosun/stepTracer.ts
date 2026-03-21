@@ -3,6 +3,13 @@ import { PromptFile } from '../prompt-fs'
 import { Logger } from '../interfaces'
 import zodToJsonSchema from 'zod-to-json-schema'
 
+export type LlmUsage = {
+    promptTokens?: number
+    completionTokens?: number
+    totalTokens?: number
+    cachedPromptTokens?: number
+}
+
 export type StepTrace = {
     /** Unique ID for the trace */
     traceId?: string
@@ -25,6 +32,7 @@ export type StepTrace = {
     stringifiedConversation?: string
     schema?: ZodSchema
     model?: string
+    llmUsage?: LlmUsage
 
     /** Raw response from LLM or function call result */
     response?: string
