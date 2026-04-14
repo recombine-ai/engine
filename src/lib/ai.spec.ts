@@ -130,7 +130,7 @@ describe('workflow.run', () => {
             terminate: expect.any(Function),
             rewindTo: expect.any(Function),
         })
-        await wf.run(cnv, ctx)
+        await wf.run(cnv, () => ctx)
         expect(dumbStep.runIf).toBeCalledWith(cnv, ctx)
         expect(dumbStep.execute).toBeCalledWith(cnv, ctx, wfHandle)
         expect(mainPrompt.content).toBeCalled()
@@ -183,7 +183,7 @@ describe('workflow.run', () => {
             onError,
         })
 
-        await wf.run(cnv, {})
+        await wf.run(cnv, emptyContextProvider)
         process.env.OPENAI_API_KEY = prev
 
         expect(smartStep.execute).toBeCalledWith(
@@ -239,7 +239,7 @@ describe('workflow.run', () => {
             onError: mockOnError,
         })
 
-        await wf.run(cnv, {})
+        await wf.run(cnv, emptyContextProvider)
         process.env.OPENAI_API_KEY = prev
 
         expect(smartStep.execute).not.toHaveBeenCalled()
@@ -300,7 +300,7 @@ describe('workflow.run', () => {
             onError: mockOnError,
         })
 
-        await wf.run(cnv, {})
+        await wf.run(cnv, emptyContextProvider)
         process.env.OPENAI_API_KEY = prev
 
         expect(smartStep.execute).not.toHaveBeenCalled()
@@ -346,7 +346,7 @@ describe('workflow.run', () => {
         })
         const s = step({ name: 's', prompt: 'P', model: llm, execute: vi.fn() })
         const wf = ai.createWorkflow({ steps: [s], onError })
-        await wf.run(cnv, {})
+        await wf.run(cnv, emptyContextProvider)
 
         expect(createMock).toBeCalledWith(
             expect.objectContaining({
@@ -376,7 +376,7 @@ describe('workflow.run', () => {
 
         const s = step({ name: 's', prompt: 'P', model: adapter, execute: vi.fn() })
         const wf = ai.createWorkflow({ steps: [s], onError })
-        await wf.run(cnv, {})
+        await wf.run(cnv, emptyContextProvider)
 
         expect(stepTracer.addStepTrace).toBeCalled()
         const firstCallArg = (stepTracer.addStepTrace as Mock).mock.calls[0][0]
@@ -405,7 +405,7 @@ describe('workflow.run', () => {
 
         const s = step({ name: 's', model: 'gpt-4o-2024-08-06', prompt: 'P', execute: vi.fn() })
         const wf = ai.createWorkflow({ steps: [s], onError })
-        await wf.run(cnv, {})
+        await wf.run(cnv, emptyContextProvider)
 
         expect(createMock).toBeCalledWith(
             expect.objectContaining({
@@ -440,7 +440,7 @@ describe('workflow.run', () => {
         const schema = z.object({ foo: z.number() })
         const s = step({ name: 's', schema, prompt: 'P', execute: vi.fn() })
         const wf = ai.createWorkflow({ steps: [s], onError })
-        await wf.run(cnv, {})
+        await wf.run(cnv, emptyContextProvider)
 
         expect(createMock).toBeCalledWith(
             expect.objectContaining({
@@ -473,7 +473,7 @@ describe('workflow.run', () => {
                 steps: [firstStep, secondStep],
                 onError,
             })
-            await wf.run(cnv)
+            await wf.run(cnv, emptyContextProvider)
 
             expect(secondStep.execute).not.toHaveBeenCalled()
         })
@@ -503,7 +503,7 @@ describe('workflow.run', () => {
                 onError,
             })
 
-            await wf.run(cnv, {})
+            await wf.run(cnv, emptyContextProvider)
 
             expect(firstStep.execute).toBeCalledTimes(2)
         })
@@ -532,7 +532,7 @@ describe('workflow.run', () => {
                 onError: mockOnError,
             })
 
-            await wf.run(cnv, {})
+            await wf.run(cnv, emptyContextProvider)
 
             expect(firstStep.execute).toBeCalledTimes(3)
             expect(mockOnError).toHaveBeenCalledOnce()
@@ -574,7 +574,7 @@ describe('workflow.run', () => {
                 onError: mockOnError,
             })
 
-            await wf.run(cnv, {})
+            await wf.run(cnv, emptyContextProvider)
 
             expect(firstStep.execute).toBeCalledTimes(5)
             expect(mockOnError).toHaveBeenCalledOnce()
@@ -639,7 +639,7 @@ describe('workflow.run', () => {
                 name: 'wf-1',
             })
             const conversation = engine.createConversation([])
-            await wf.run(conversation, { foo: 'bar' })
+            await wf.run(conversation, () => ({ foo: 'bar' }))
 
             expect(stepTracer.addStepTrace).toHaveBeenCalledTimes(1)
             const trace = stepTracer.addStepTrace.mock.calls[0][0]
@@ -665,7 +665,7 @@ describe('workflow.run', () => {
             })
             const wf = engine.createWorkflow({ steps: [jsonStep], onError: async () => {} })
             const conversation = engine.createConversation([])
-            await wf.run(conversation, {})
+            await wf.run(conversation, emptyContextProvider)
 
             expect(stepTracer.addStepTrace).toHaveBeenCalledTimes(1)
             const trace = stepTracer.addStepTrace.mock.calls[0][0]
@@ -690,7 +690,7 @@ describe('workflow.run', () => {
             })
             const wf = engine.createWorkflow({ steps: [failingStep], onError: async () => {} })
             const conversation = engine.createConversation([])
-            const result = await wf.run(conversation, {})
+            const result = await wf.run(conversation, emptyContextProvider)
 
             expect(stepTracer.addStepTrace).toHaveBeenCalledTimes(1)
             const trace = stepTracer.addStepTrace.mock.calls[0][0]
@@ -709,7 +709,7 @@ describe('workflow.run', () => {
             })
             const wf = engine.createWorkflow({ steps: [programmatic], onError: async () => {} })
             const conversation = engine.createConversation([])
-            await wf.run(conversation, {})
+            await wf.run(conversation, emptyContextProvider)
 
             expect(stepTracer.addStepTrace).not.toHaveBeenCalled()
             expect(stepTracer.flush).toHaveBeenCalledTimes(1)
@@ -733,3 +733,4 @@ async function onError(err: any) {
     console.trace(err)
     throw err
 }
+const emptyContextProvider = () => ({})

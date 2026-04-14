@@ -2,7 +2,7 @@
 import { randomUUID } from 'crypto'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import nunjucks from 'nunjucks'
-import { ZodSchema, ZodTypeAny } from 'zod'
+import * as Zod from 'zod'
 import { Logger } from './interfaces'
 import { makeAction, SendAction } from './bosun/action'
 import { PromptFile } from './prompt-fs'
@@ -25,15 +25,15 @@ export type BasicModel =
 
 export interface LlmAdapter {
     /**
-     * @param systemPrompt – rendered system prompt
-     * @param messages – stringified {@link Conversation}
+     * @param systemPrompt - rendered system prompt
+     * @param messages - stringified {@link Conversation}
      * @param schema - optional Zod schema to pass to the model. Will overwrite any schema set in adapter options.
      * @returns LLM Response
      */
     generateResponse: (
         systemPrompt: string,
         messages: string,
-        schema?: ZodTypeAny,
+        schema?: Zod.ZodTypeAny,
     ) => Promise<string>
     /** Returns adapter's configuration/options for tracing */
     getOptions: () => unknown
@@ -62,9 +62,6 @@ export interface ProgrammaticStep<CTX> extends BasicStep<CTX> {
 }
 
 export interface LLMStep<CTX> extends BasicStep<CTX> {
-    /** Determines if the step should be run or not */
-    runIf?: (messages: Conversation, ctx: CTX) => boolean | Promise<boolean>
-
     /** LLM to use. Can be a model name or an adapter. Defaults to gpt-4o */
     model?: BasicModel | LlmAdapter
 
@@ -93,7 +90,7 @@ export interface WorkflowControls {
     rewindTo: (step: string) => void
 }
 
-export interface JsonLLMStep<CTX, Schema extends ZodTypeAny> extends LLMStep<CTX> {
+export interface JsonLLMStep<CTX, Schema extends Zod.ZodTypeAny> extends LLMStep<CTX> {
     /**
      * Defines the expected structure of the LLM's output. Accepts ZodSchema. When provided, the
      * LLM's response is validated and parsed according to this schema ensuring reliable structured
@@ -161,20 +158,20 @@ export interface Workflow<CTX> {
      * Runs the workflow with a given conversation context.
      * Executes steps sequentially until completion or termination.
      * @param conversation - The conversation context for the workflow
-     * @param context – Context that will be passed to all steps and to all prompts in those steps
-     * @param beforeEach – A callback, that runs before each step
+     * @param contextProvider - A provider function for the context that will be passed to all steps and to all prompts in those steps
+     * @param beforeEach - A callback, that runs before each step
      * @returns The proposed reply if workflow completes, or null if terminated
      */
     run: (
         conversation: Conversation,
-        context?: CTX,
+        contextProvider: (() => CTX) | (() => Promise<CTX>),
         beforeEach?: BeforeEachStep<CTX>,
     ) => Promise<string | null>
 
     /**
      * Add a step to workflow
      */
-    addStep<Schema extends ZodTypeAny>(step: JsonLLMStep<CTX, Schema>): void
+    addStep<Schema extends Zod.ZodTypeAny>(step: JsonLLMStep<CTX, Schema>): void
     addStep(step: StringLLMStep<CTX>): void
     addStep(step: ProgrammaticStep<CTX>): void
 }
@@ -189,7 +186,7 @@ export interface WorkflowConfig<CTX> {
 }
 
 interface StepBuilder<CTX> {
-    <Schema extends ZodTypeAny>(step: JsonLLMStep<CTX, Schema>): JsonLLMStep<CTX, Schema>
+    <Schema extends Zod.ZodTypeAny>(step: JsonLLMStep<CTX, Schema>): JsonLLMStep<CTX, Schema>
     (step: StringLLMStep<CTX>): StringLLMStep<CTX>
     (step: ProgrammaticStep<CTX>): ProgrammaticStep<CTX>
 }
@@ -446,9 +443,14 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     }: WorkflowConfig<CTX>): Workflow<CTX> {
         steps.forEach(addStepToTracer)
         return {
-            run: async (messages: Conversation, ctx: any, beforeEach?: BeforeEachStep<CTX>) => {
+            run: async (
+                messages: Conversation,
+                contextProvider: (() => CTX) | (() => Promise<CTX>),
+                beforeEach?: BeforeEachStep<CTX>,
+            ) => {
                 const state = new WorkflowState<CTX>(logger, steps)
                 do {
+                    const ctx = await contextProvider()
                     await beforeEach?.(messages, ctx, state)
                     const step = state.getStep()
                     if (state.isTerminated()) {
@@ -507,7 +509,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                           : 'default',
                 schema:
                     'schema' in step
-                        ? step.schema instanceof ZodSchema
+                        ? step.schema instanceof Zod.ZodSchema
                             ? step.schema
                             : undefined
                         : undefined,
@@ -616,7 +618,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         model: BasicModel | LlmAdapter | undefined,
         systemPrompt: string,
         messages: string,
-        schema?: ZodSchema,
+        schema?: Zod.ZodSchema,
     ) {
         const adapter: LlmAdapter =
             typeof model === 'string' || model === undefined
@@ -696,7 +698,7 @@ class WorkflowState<CTX> {
     }
 }
 
-function getOpenAiOptions(model: BasicModel, schema?: ZodSchema) {
+function getOpenAiOptions(model: BasicModel, schema?: Zod.ZodSchema) {
     const options: Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'> = {
         model,
     }
