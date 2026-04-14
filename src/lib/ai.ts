@@ -25,8 +25,8 @@ export type BasicModel =
 
 export interface LlmAdapter {
     /**
-     * @param systemPrompt – rendered system prompt
-     * @param messages – stringified {@link Conversation}
+     * @param systemPrompt - rendered system prompt
+     * @param messages - stringified {@link Conversation}
      * @param schema - optional Zod schema to pass to the model. Will overwrite any schema set in adapter options.
      * @returns LLM Response
      */
@@ -158,13 +158,13 @@ export interface Workflow<CTX> {
      * Runs the workflow with a given conversation context.
      * Executes steps sequentially until completion or termination.
      * @param conversation - The conversation context for the workflow
-     * @param contextProvider – Context that will be passed to all steps and to all prompts in those steps
-     * @param beforeEach – A callback, that runs before each step
+     * @param contextProvider - A provider function for the context that will be passed to all steps and to all prompts in those steps
+     * @param beforeEach - A callback, that runs before each step
      * @returns The proposed reply if workflow completes, or null if terminated
      */
     run: (
         conversation: Conversation,
-        contextProvider: CTX | (() => CTX) | (() => Promise<CTX>),
+        contextProvider: (() => CTX) | (() => Promise<CTX>),
         beforeEach?: BeforeEachStep<CTX>,
     ) => Promise<string | null>
 
@@ -445,15 +445,12 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         return {
             run: async (
                 messages: Conversation,
-                contextProvider: CTX | (() => CTX) | (() => Promise<CTX>),
+                contextProvider: (() => CTX) | (() => Promise<CTX>),
                 beforeEach?: BeforeEachStep<CTX>,
             ) => {
                 const state = new WorkflowState<CTX>(logger, steps)
                 do {
-                    const ctx =
-                        typeof contextProvider === 'function'
-                            ? await contextProvider()
-                            : contextProvider
+                    const ctx = await contextProvider()
                     await beforeEach?.(messages, ctx, state)
                     const step = state.getStep()
                     if (state.isTerminated()) {
