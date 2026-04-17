@@ -170,6 +170,7 @@ export interface Workflow<CTX> {
 
     /**
      * Add a step to workflow
+     * @deprecated use {@link WorkflowConfig#steps} instead
      */
     addStep<Schema extends Zod.ZodTypeAny>(step: JsonLLMStep<CTX, Schema>): void
     addStep(step: StringLLMStep<CTX>): void
@@ -178,11 +179,16 @@ export interface Workflow<CTX> {
 
 type WorkflowStep<CTX> = StringLLMStep<CTX> | JsonLLMStep<CTX, any> | ProgrammaticStep<CTX>
 
+/**
+ * Config object to be used in {@link AIEngine#createWorkflow}
+ */
 export interface WorkflowConfig<CTX> {
-    onError: (error: string, ctx: CTX) => Promise<unknown>
-    steps?: WorkflowStep<CTX>[]
+    /** workflow name, to use in traces, defaults to 'workflow' */
     name?: string
-    beforeEachCallback?: () => Promise<unknown>
+    /** common error handler for workflow */
+    onError: (error: string, ctx: CTX) => Promise<unknown>
+    /** workflow steps {@link ProgrammaticStep}, {@link StringLLMStep} or {@link JsonLLMStep} */
+    steps?: WorkflowStep<CTX>[]
 }
 
 interface StepBuilder<CTX> {
@@ -196,57 +202,25 @@ interface StepBuilder<CTX> {
  *
  * @example
  * ```typescript
- * import { AIEngine } from './lib/ai'
+ * import { createAIEngine } from '@recombine-ai/engine'
  *
- * // Create a new AI engine instance
- * const ai = AIEngine.createAIEngine()
- *
- * // Create a conversation
- * const conversation = ai.createConversation()
- * conversation.addMessage('user', 'I need help with my order')
- *
- * // Define workflow steps
- * const killswitch = ai.createStep({
- *   name: 'killswitch',
- *   prompt: ai.loadFile('prompts/killswitch.njk'),
- *   execute: async (reply) => {
- *     const result = JSON.parse(reply)
- *     if (result.terminate) {
- *       conversation.addDirective(`Terminating workflow: ${result.reason}`)
- *       return workflow.terminate()
- *     }
- *   },
- *   onError: async (error) => conversation.addDirective(`Error in killswitch: ${error}`)
+ * Create a new AI engine instance
+ * const ai = createAIEngine({
+ *   // engine configuration, see EngineConfig
  * })
  *
- * const analyzeIntent = ai.createStep({
- *   name: 'analyze-intent',
- *   prompt: ai.loadFile('prompts/analyze-intent.njk'),
- *   execute: async (reply) => {
- *     const intent = JSON.parse(reply)
- *     conversation.addDirective(`User intent is: ${intent.category}`)
- *   },
- *   onError: async (error) => conversation.addDirective(`Error analyzing intent: ${error}`)
- * })
- *
- * const mainReply = ai.createStep({
- *   name: 'main-reply',
- *   prompt: ai.loadFile('prompts/generate-response.njk'),
- *   execute: async (reply) => conversation.setProposedReply(reply),
- *   onError: async (error) => conversation.setProposedReply(`I'm sorry, I'm having trouble right now.`)
- * })
- *
- * // Create and run the workflow
- * const workflow = await ai.createWorkflow(killswitch, analyzeIntent, mainReply)
- * const response = await workflow.run(conversation)
- * console.log(response)
+ * // create a conversation to be used in workflow.run(), see Conversation
+ * const conversation = ai.createConversation(messages)
+ * // create a workflow, see WorkflowConfig
+ * const workflow = ai.createWorkflow({steps})
+ * workflow.run(conversation)
  * ```
  */
 export interface AIEngine {
     /**
      * Creates a workflow from a sequence of steps.
      * @param config - common parameters for a workflow
-     * @returns A Promise that resolves to the created Workflow.
+     * @returns AI workflow Workflow.
      */
     createWorkflow: <CTX extends object>(config: WorkflowConfig<CTX>) => Workflow<CTX>
 
@@ -276,37 +250,19 @@ export interface AIEngine {
  * Represents a conversation between a user and an AI agent.
  * Provides methods to manage the conversation flow, format messages, and convert the conversation
  * to a string representation.
- *
- * @example
- * ```typescript
- * // Create a new conversation instance
- * const conversation = new Conversation();
- *
- * // Set names for the participants
- * conversation.setUserName("Client");
- * conversation.setAgentName("Support");
- *
- * // Add messages to the conversation
- * conversation.addMessage("user", "I need help with my account");
- * conversation.addDirective("Ask for account details");
- *
- * // Get the conversation as a string to feed to an LLM
- * const conversationText = conversation.toString();
- * // Output:
- * // Client: I need help with my account
- * // System: Ask for account details
- * ```
  */
 export interface Conversation {
     /**
      * Sets the name of the user in the conversation to be used in {@link toString}.
      * @param name - The name to set for the user.
+     * @deprecated
      */
     setUserName(name: string): void
 
     /**
      * Sets the name of the AI agent in the conversation to be used in {@link toString}.
      * @param name - The name to set for the agent.
+     * @deprecated
      */
     setAgentName(name: string): void
 
