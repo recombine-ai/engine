@@ -822,7 +822,7 @@ describe('workflow.run', () => {
 
                 expect(afterExecute).toBeCalledTimes(0)
             })
-            it('runs before execute exactly once', async () => {
+            it('runs after execute exactly once', async () => {
                 const { ai, step, cnv } = getAi()
                 const afterExecute = vi.fn()
                 const wf = ai.createWorkflow({
@@ -838,6 +838,27 @@ describe('workflow.run', () => {
                             name: 'second-step',
                             runIf: () => true,
                             execute: noopA,
+                        }),
+                    ],
+                })
+                const context = { foo: 'bar' }
+                await wf.run(cnv, () => context)
+
+                expect(afterExecute).toBeCalledTimes(1)
+            })
+            it('runs even if execute throws', async () => {
+                const { ai, step, cnv } = getAi()
+                const afterExecute = vi.fn()
+                const wf = ai.createWorkflow({
+                    onError: noopA,
+                    afterExecute,
+                    steps: [
+                        step({
+                            name: 'first-step',
+                            runIf: () => true,
+                            execute: () => {
+                                throw new Error('BOO!')
+                            },
                         }),
                     ],
                 })
