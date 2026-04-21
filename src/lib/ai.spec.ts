@@ -4,6 +4,8 @@ import { PromptFile } from './prompt-fs'
 import { z } from 'zod'
 import { createOpenAIAdapter } from './llm-adapters/openai'
 
+// TODO: clean-up stdout by providing noop-stepTracer in all tests which don't have its own
+
 // Mock OpenAI at the top level
 // NOTE ABOUT OPENAI_API_KEY in tests:
 // - For tests that need to inspect arguments passed to OpenAI (via mocking),
@@ -715,11 +717,143 @@ describe('workflow.run', () => {
             expect(stepTracer.flush).toHaveBeenCalledTimes(1)
         })
     })
+
+    describe('before/afterExecute hooks', () => {
+        describe('beforeExecute hook', () => {
+            it('runs before execute', async () => {
+                const { ai, step, cnv } = getAi()
+                const beforeExecute = vi.fn()
+                const wf = ai.createWorkflow({
+                    onError,
+                    beforeExecute,
+                    steps: [
+                        step({
+                            name: 'first-step',
+                            runIf: () => true,
+                            execute: noopA,
+                        }),
+                    ],
+                })
+                const context = { foo: 'bar' }
+                await wf.run(cnv, () => context)
+
+                expect(beforeExecute).toBeCalledTimes(1)
+                expect(beforeExecute).toBeCalledWith(context)
+            })
+            it('does NOT run if no execution', async () => {
+                const { ai, step, cnv } = getAi()
+                const beforeExecute = vi.fn()
+                const wf = ai.createWorkflow({
+                    onError,
+                    beforeExecute,
+                    steps: [
+                        step({
+                            name: 'first-step',
+                            runIf: () => false,
+                            execute: noopA,
+                        }),
+                    ],
+                })
+                await wf.run(cnv, () => ({}))
+
+                expect(beforeExecute).toBeCalledTimes(0)
+            })
+            it('runs before execute exactly once', async () => {
+                const { ai, step, cnv } = getAi()
+                const beforeExecute = vi.fn()
+                const wf = ai.createWorkflow({
+                    onError,
+                    beforeExecute,
+                    steps: [
+                        step({
+                            name: 'first-step',
+                            runIf: () => true,
+                            execute: noopA,
+                        }),
+                        step({
+                            name: 'second-step',
+                            runIf: () => true,
+                            execute: noopA,
+                        }),
+                    ],
+                })
+                const context = { foo: 'bar' }
+                await wf.run(cnv, () => context)
+
+                expect(beforeExecute).toBeCalledTimes(1)
+            })
+        })
+        describe('afterExecute hook', () => {
+            it('runs before execute', async () => {
+                const { ai, step, cnv } = getAi()
+                const afterExecute = vi.fn()
+                const wf = ai.createWorkflow({
+                    onError,
+                    afterExecute,
+                    steps: [
+                        step({
+                            name: 'first-step',
+                            runIf: () => true,
+                            execute: noopA,
+                        }),
+                    ],
+                })
+                const context = { foo: 'bar' }
+                await wf.run(cnv, () => context)
+
+                expect(afterExecute).toBeCalledTimes(1)
+                expect(afterExecute).toBeCalledWith(context)
+            })
+            it('does NOT run if no execution', async () => {
+                const { ai, step, cnv } = getAi()
+                const afterExecute = vi.fn()
+                const wf = ai.createWorkflow({
+                    onError,
+                    afterExecute,
+                    steps: [
+                        step({
+                            name: 'first-step',
+                            runIf: () => false,
+                            execute: noopA,
+                        }),
+                    ],
+                })
+                await wf.run(cnv, () => ({}))
+
+                expect(afterExecute).toBeCalledTimes(0)
+            })
+            it('runs before execute exactly once', async () => {
+                const { ai, step, cnv } = getAi()
+                const afterExecute = vi.fn()
+                const wf = ai.createWorkflow({
+                    onError,
+                    afterExecute,
+                    steps: [
+                        step({
+                            name: 'first-step',
+                            runIf: () => true,
+                            execute: noopA,
+                        }),
+                        step({
+                            name: 'second-step',
+                            runIf: () => true,
+                            execute: noopA,
+                        }),
+                    ],
+                })
+                const context = { foo: 'bar' }
+                await wf.run(cnv, () => context)
+
+                expect(afterExecute).toBeCalledTimes(1)
+            })
+        })
+    })
 })
 
-function getAi(tracer = { addStep: noop }) {
+function getAi(stepRegistry = { addStep: noop }) {
     const ai = createAIEngine({
-        tracer,
+        stepRegistry,
+        stepTracer: { addStepTrace: noop, flush: noopA },
         logger: { ...console, debug: noop, error: noop },
     })
     const step = ai.getStepBuilder()
