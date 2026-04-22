@@ -726,13 +726,7 @@ describe('workflow.run', () => {
                 const wf = ai.createWorkflow({
                     onError,
                     beforeExecute,
-                    steps: [
-                        step({
-                            name: 'first-step',
-                            runIf: () => true,
-                            execute: noopA,
-                        }),
-                    ],
+                    steps: [step({ name: 'first-step', runIf: () => true, execute: noopA })],
                 })
                 const context = { foo: 'bar' }
                 await wf.run(cnv, () => context)
@@ -746,13 +740,7 @@ describe('workflow.run', () => {
                 const wf = ai.createWorkflow({
                     onError,
                     beforeExecute,
-                    steps: [
-                        step({
-                            name: 'first-step',
-                            runIf: () => false,
-                            execute: noopA,
-                        }),
-                    ],
+                    steps: [step({ name: 'first-step', runIf: () => false, execute: noopA })],
                 })
                 await wf.run(cnv, () => ({}))
 
@@ -765,22 +753,37 @@ describe('workflow.run', () => {
                     onError,
                     beforeExecute,
                     steps: [
-                        step({
-                            name: 'first-step',
-                            runIf: () => true,
-                            execute: noopA,
-                        }),
-                        step({
-                            name: 'second-step',
-                            runIf: () => true,
-                            execute: noopA,
-                        }),
+                        step({ name: 'first-step', runIf: () => true, execute: noopA }),
+                        step({ name: 'second-step', runIf: () => true, execute: noopA }),
                     ],
                 })
                 const context = { foo: 'bar' }
                 await wf.run(cnv, () => context)
 
                 expect(beforeExecute).toBeCalledTimes(1)
+            })
+
+            it('runs before all steps', async () => {
+                const { ai, step, cnv } = getAi()
+                const beforeExecute = vi.fn()
+                const firstExecute = vi.fn()
+                const secondExecute = vi.fn()
+                const wf = ai.createWorkflow({
+                    onError,
+                    beforeExecute,
+                    steps: [
+                        step({ name: 'first-step', runIf: () => true, execute: firstExecute }),
+                        step({ name: 'second-step', runIf: () => true, execute: secondExecute }),
+                    ],
+                })
+                const context = { foo: 'bar' }
+                await wf.run(cnv, () => context)
+
+                const firstOrder = firstExecute.mock.invocationCallOrder[0]
+                const secondOrder = secondExecute.mock.invocationCallOrder[0]
+                const afterOrder = beforeExecute.mock.invocationCallOrder[0]
+                expect(afterOrder).toBeLessThan(firstOrder)
+                expect(afterOrder).toBeLessThan(secondOrder)
             })
         })
         describe('afterExecute hook', () => {
@@ -790,13 +793,7 @@ describe('workflow.run', () => {
                 const wf = ai.createWorkflow({
                     onError,
                     afterExecute,
-                    steps: [
-                        step({
-                            name: 'first-step',
-                            runIf: () => true,
-                            execute: noopA,
-                        }),
-                    ],
+                    steps: [step({ name: 'first-step', runIf: () => true, execute: noopA })],
                 })
                 const context = { foo: 'bar' }
                 await wf.run(cnv, () => context)
@@ -810,13 +807,7 @@ describe('workflow.run', () => {
                 const wf = ai.createWorkflow({
                     onError,
                     afterExecute,
-                    steps: [
-                        step({
-                            name: 'first-step',
-                            runIf: () => false,
-                            execute: noopA,
-                        }),
-                    ],
+                    steps: [step({ name: 'first-step', runIf: () => false, execute: noopA })],
                 })
                 await wf.run(cnv, () => ({}))
 
@@ -829,16 +820,8 @@ describe('workflow.run', () => {
                     onError,
                     afterExecute,
                     steps: [
-                        step({
-                            name: 'first-step',
-                            runIf: () => true,
-                            execute: noopA,
-                        }),
-                        step({
-                            name: 'second-step',
-                            runIf: () => true,
-                            execute: noopA,
-                        }),
+                        step({ name: 'first-step', runIf: () => true, execute: noopA }),
+                        step({ name: 'second-step', runIf: () => true, execute: noopA }),
                     ],
                 })
                 const context = { foo: 'bar' }
@@ -846,6 +829,30 @@ describe('workflow.run', () => {
 
                 expect(afterExecute).toBeCalledTimes(1)
             })
+
+            it('runs after all steps', async () => {
+                const { ai, step, cnv } = getAi()
+                const afterExecute = vi.fn()
+                const firstExecute = vi.fn()
+                const secondExecute = vi.fn()
+                const wf = ai.createWorkflow({
+                    onError,
+                    afterExecute,
+                    steps: [
+                        step({ name: 'first-step', runIf: () => true, execute: firstExecute }),
+                        step({ name: 'second-step', runIf: () => true, execute: secondExecute }),
+                    ],
+                })
+                const context = { foo: 'bar' }
+                await wf.run(cnv, () => context)
+
+                const firstOrder = firstExecute.mock.invocationCallOrder[0]
+                const secondOrder = secondExecute.mock.invocationCallOrder[0]
+                const afterOrder = afterExecute.mock.invocationCallOrder[0]
+                expect(afterOrder).toBeGreaterThan(firstOrder)
+                expect(afterOrder).toBeGreaterThan(secondOrder)
+            })
+
             it('runs even if execute throws', async () => {
                 const { ai, step, cnv } = getAi()
                 const afterExecute = vi.fn()

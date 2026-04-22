@@ -412,7 +412,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
             ) => {
                 const state = new WorkflowState<CTX>(logger, steps)
                 let beforeHookExecuted = false
-                let afterHookExecuted = false
+                let didExecute = false
                 do {
                     const ctx = await contextProvider()
                     await beforeEach?.(messages, ctx, state)
@@ -426,6 +426,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                         const action = makeAction(cfg.sendAction, 'AI', step.name)
                         await action('started')
 
+                        didExecute = true
                         if (beforeExecute && !beforeHookExecuted) {
                             await beforeExecute(ctx)
                             beforeHookExecuted = true
@@ -435,14 +436,13 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                         } else {
                             await runProgrammaticStep(step, messages, ctx, state)
                         }
-
-                        if (afterExecute && !afterHookExecuted) {
-                            await afterExecute(ctx)
-                            afterHookExecuted = true
-                        }
                         await action('completed')
                     }
                 } while (state.next())
+
+                if (afterExecute && didExecute) {
+                    await afterExecute(await contextProvider())
+                }
 
                 await stepTracer.flush()
                 return state.isTerminated() ? null : messages.getProposedReply()
