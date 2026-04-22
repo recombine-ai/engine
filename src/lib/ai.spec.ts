@@ -196,6 +196,54 @@ describe('workflow.run', () => {
         )
     })
 
+    it('executes smart step with erroneous execution and error in onError', async () => {
+        // We set a non-__TESTING__ value so the adapter does not short-circuit
+        // and we can assert the exact payload passed to OpenAI's client.
+        const prev = process.env.OPENAI_API_KEY
+        process.env.OPENAI_API_KEY = 'mocked'
+        const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
+        OpenAI.mockReturnValue({
+            chat: {
+                completions: {
+                    create: vi.fn(() => ({
+                        choices: [
+                            {
+                                message: {
+                                    content: JSON.stringify({ name: 'John', age: 30 }),
+                                },
+                            },
+                        ],
+                    })),
+                },
+            },
+        })
+        const ai = createAIEngine({
+            logger: { ...console, debug: noop, error: noop },
+        })
+        const step = ai.getStepBuilder()
+        const cnv = ai.createConversation([])
+
+        const smartStep = step({
+            name: 'smart-step',
+            prompt: 'Get user info',
+            execute: vi.fn(async () => {
+                throw new Error('Execution failed')
+            }),
+        })
+
+        const onError = vi.fn().mockImplementation(() => {})
+        const wf = ai.createWorkflow({
+            steps: [smartStep],
+            onError,
+        })
+
+        await wf.run(cnv, emptyContextProvider)
+        process.env.OPENAI_API_KEY = prev
+
+        expect(smartStep.execute).toBeCalled()
+        expect(onError).toHaveBeenCalled()
+    })
+
     it('executes smart steps with corrupted JSON parsed response', async () => {
         // We set a non-__TESTING__ value so the adapter does not short-circuit
         // and we can assert the exact payload passed to OpenAI's client.
