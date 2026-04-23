@@ -185,6 +185,10 @@ type WorkflowStep<CTX> = StringLLMStep<CTX> | JsonLLMStep<CTX, any> | Programmat
 export interface WorkflowConfig<CTX> {
     /** workflow name, to use in traces, defaults to 'workflow' */
     name?: string
+    /** a function that will run once, if any of the steps going to be executed */
+    beforeExecute?: (ctx: CTX) => Promise<void>
+    /** a function that will run once, if any of the steps was executed */
+    afterExecute?: (ctx: CTX) => Promise<void>
     /** common error handler for workflow */
     onError: (error: string, ctx: CTX) => Promise<unknown>
     /** workflow steps {@link ProgrammaticStep}, {@link StringLLMStep} or {@link JsonLLMStep} */
@@ -394,6 +398,8 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
 
     function createWorkflow<CTX extends object>({
         onError,
+        beforeExecute,
+        afterExecute,
         steps = [],
         name = 'workflow',
     }: WorkflowConfig<CTX>): Workflow<CTX> {
@@ -405,6 +411,8 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 beforeEach?: BeforeEachStep<CTX>,
             ) => {
                 const state = new WorkflowState<CTX>(logger, steps)
+                let beforeHookExecuted = false
+                let didExecute = false
                 do {
                     const ctx = await contextProvider()
                     await beforeEach?.(messages, ctx, state)
@@ -414,8 +422,15 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                         break
                     }
                     if (!step.runIf || (await step.runIf(messages, ctx))) {
+                        // TODO: drop actions, they are replaced by traces
                         const action = makeAction(cfg.sendAction, 'AI', step.name)
                         await action('started')
+
+                        didExecute = true
+                        if (beforeExecute && !beforeHookExecuted) {
+                            await beforeExecute(ctx)
+                            beforeHookExecuted = true
+                        }
                         if ('prompt' in step) {
                             await runStep(step, messages, ctx, state)
                         } else {
@@ -424,6 +439,10 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                         await action('completed')
                     }
                 } while (state.next())
+
+                if (afterExecute && didExecute) {
+                    await afterExecute(await contextProvider())
+                }
 
                 await stepTracer.flush()
                 return state.isTerminated() ? null : messages.getProposedReply()

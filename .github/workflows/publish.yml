@@ -39,5 +39,17 @@ jobs:
             - name: 'Build'
               run: npm run build
 
+            - name: 'Compute npm publish args'
+              id: publish_meta
+              run: |
+                  VERSION="${GITHUB_REF_NAME#v}"
+                  if [[ "$VERSION" == *-* ]]; then
+                      PRERELEASE="${VERSION#*-}"
+                      DIST_TAG="${PRERELEASE%%.*}"
+                      echo "publish_args=--access public --tag ${DIST_TAG}" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "publish_args=--access public" >> "$GITHUB_OUTPUT"
+                  fi
+
             - name: 'Publish to npm'
-              run: npm publish --access public
+              run: npm publish ${{ steps.publish_meta.outputs.publish_args }}

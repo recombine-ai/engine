@@ -1,9 +1,9 @@
 {
     "name": "@recombine-ai/engine",
-    "version": "0.11.0",
+    "version": "0.11.1-beta",
     "description": "Recombine AI engine for creating conversational AI agents",
     "repository": {
-        "url": "https://github.com/recombine-ai/engine"
+        "url": "git+https://github.com/recombine-ai/engine.git"
     },
     "main": "build/index.js",
     "types": "build/index.d.ts",
