@@ -1,5 +1,22 @@
 # Changelog
 
+### 0.11.0 → 0.11.1 (unstable)
+
+- Added `beforeExecute` and `afterExecute` hooks to Workflow configuration.
+
+### 0.10.4 → 0.11.0 (unstable)
+
+- Breaking change: second argument in `workflow.run(conversation, contextProvider)` now must be a
+  function.
+
+### 0.10.3 → 0.10.4 (unstable)
+
+- Added LLM usage to `StepTrace` interface
+
+### 0.10.2 → 0.10.3 (unstable)
+
+- Enhanced error handling for AI-generated responses in `runStep`.
+
 ### 0.10.2 → 0.10.3 (unstable)
 
 - Enhanced error handling for AI-generated responses in `runStep`.
