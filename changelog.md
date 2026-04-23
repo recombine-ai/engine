@@ -1,5 +1,9 @@
 # Changelog
 
+### 0.11.1 → 0.11.2 (unstable)
+
+- Remove error suppression from the `onError` hook in the `runStep`
+
 ### 0.11.0 → 0.11.1 (unstable)
 
 - Added `beforeExecute` and `afterExecute` hooks to Workflow configuration.

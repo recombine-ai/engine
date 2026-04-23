@@ -560,6 +560,14 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                         err: onErrorErr,
                         stepName: step.name,
                     })
+
+                    if (onErrorErr instanceof Error) {
+                        throw onErrorErr
+                    } else if (typeof onErrorErr === 'string') {
+                        throw new Error(onErrorErr)
+                    } else {
+                        throw new Error('Unknown error in onError handler')
+                    }
                 }
                 state.terminate()
             } finally {
