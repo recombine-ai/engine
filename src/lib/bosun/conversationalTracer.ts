@@ -20,6 +20,7 @@ export type ConversationalTrace = {
         | 'received-message'
         | 'sent-message'
         | 'transfer-requested'
+        | 'hangup-requested'
 
     /** Role under which this event should be displayed */
     role: 'agent' | 'user' | 'system' | (string & {})
