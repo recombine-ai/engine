@@ -1,5 +1,9 @@
 # Changelog
 
+### 0.11.2 → 0.11.3 (unstable)
+
+- Added `hangup-requested` conversational trace event type
+
 ### 0.11.1 → 0.11.2 (unstable)
 
 - Remove error suppression from the `onError` hook in the `runStep`
