@@ -247,7 +247,7 @@ export interface AIEngine {
      * @param context - Optional context object to use for rendering the prompt.
      * @returns The rendered prompt string.
      */
-    renderPrompt: typeof renderPrompt
+    renderPrompt: (prompt: string, context?: object) => string
 }
 
 /**
@@ -363,6 +363,11 @@ export interface EngineConfig {
      * registers steps in workflow
      */
     stepRegistry?: StepRegistry
+
+    /**
+     * Optional nunjucks Environment to customize prompt rendering.
+     */
+    nunjucksEnv?: nunjucks.Environment
 }
 
 /**
@@ -612,6 +617,19 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         return adapter.generateResponse(systemPrompt, messages, schema)
     }
 
+    function renderPrompt(prompt: string, context?: object): string {
+        if (cfg.nunjucksEnv) {
+            return cfg.nunjucksEnv.renderString(prompt, context ?? {})
+        }
+
+        nunjucks.configure({
+            autoescape: false,
+            trimBlocks: true,
+            lstripBlocks: true,
+        })
+        return nunjucks.renderString(prompt, context ?? {})
+    }
+
     return {
         createWorkflow,
         createConversation,
@@ -707,15 +725,6 @@ function getOpenAiOptions(model: BasicModel, schema?: Zod.ZodSchema) {
     }
 
     return options
-}
-
-function renderPrompt(prompt: string, context?: object): string {
-    nunjucks.configure({
-        autoescape: false,
-        trimBlocks: true,
-        lstripBlocks: true,
-    })
-    return nunjucks.renderString(prompt, context || {})
 }
 
 export function createConversation(initialMessages: Message[] = []): Conversation {
