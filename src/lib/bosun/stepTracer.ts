@@ -1,7 +1,6 @@
-import { ZodSchema } from 'zod'
+import { type ZodType, toJSONSchema } from 'zod'
 import { PromptFile } from '../prompt-fs'
 import { Logger } from '../interfaces'
-import zodToJsonSchema from 'zod-to-json-schema'
 
 export type LlmUsage = {
     promptTokens?: number
@@ -30,7 +29,7 @@ export type StepTrace = {
     receivedPrompt?: string | PromptFile | File
 
     stringifiedConversation?: string
-    schema?: ZodSchema
+    schema?: ZodType
     model?: string
     llmUsage?: LlmUsage
 
@@ -64,7 +63,7 @@ export function createStubStepTracer(logger: Logger) {
                 logger.log(`StepTrace, model: ${trace.model}`)
             }
             if (trace.schema) {
-                logger.log('StepTrace, schema:', zodToJsonSchema(trace.schema))
+                logger.log('StepTrace, schema:', toJSONSchema(trace.schema))
             }
             if (trace.receivedContext) {
                 logger.log('StepTrace, context:', trace.receivedContext)

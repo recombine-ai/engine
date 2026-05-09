@@ -1,8 +1,7 @@
 import { OpenAI } from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import type { LlmAdapter } from '../ai'
-import { ZodTypeAny } from 'zod'
-import zodToJsonSchema from 'zod-to-json-schema'
+import { type ZodType, toJSONSchema } from 'zod'
 
 export type OpenAIChatOptions = Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'>
 
@@ -21,7 +20,7 @@ export function createOpenAIAdapter(
         async generateResponse(
             systemPrompt: string,
             messages: string,
-            schema?: ZodTypeAny,
+            schema?: ZodType,
         ): Promise<string> {
             const finalOptions = { ...options }
             if (schema) {
@@ -29,7 +28,7 @@ export function createOpenAIAdapter(
                     type: 'json_schema',
                     json_schema: {
                         name: 'detector_response',
-                        schema: zodToJsonSchema(schema),
+                        schema: toJSONSchema(schema),
                         strict: true,
                     },
                 }

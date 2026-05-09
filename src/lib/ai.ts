@@ -8,7 +8,6 @@ import { makeAction, SendAction } from './bosun/action'
 import { PromptFile } from './prompt-fs'
 import { createStubStepTracer, StepTrace, StepTracer } from './bosun/stepTracer'
 import { createStubRegistry, stdPrompt, StepRegistry, Tracer } from './bosun/tracer'
-import { zodToJsonSchema } from 'zod-to-json-schema'
 import { createOpenAIAdapter } from './llm-adapters/openai'
 
 /**
@@ -33,7 +32,7 @@ export interface LlmAdapter {
     generateResponse: (
         systemPrompt: string,
         messages: string,
-        schema?: Zod.ZodTypeAny,
+        schema?: Zod.ZodType,
     ) => Promise<string>
     /** Returns adapter's configuration/options for tracing */
     getOptions: () => unknown
@@ -90,7 +89,7 @@ export interface WorkflowControls {
     rewindTo: (step: string) => void
 }
 
-export interface JsonLLMStep<CTX, Schema extends Zod.ZodTypeAny> extends LLMStep<CTX> {
+export interface JsonLLMStep<CTX, Schema extends Zod.ZodType> extends LLMStep<CTX> {
     /**
      * Defines the expected structure of the LLM's output. Accepts ZodSchema. When provided, the
      * LLM's response is validated and parsed according to this schema ensuring reliable structured
@@ -196,7 +195,7 @@ export interface WorkflowConfig<CTX> {
 }
 
 interface StepBuilder<CTX> {
-    <Schema extends Zod.ZodTypeAny>(step: JsonLLMStep<CTX, Schema>): JsonLLMStep<CTX, Schema>
+    <Schema extends Zod.ZodType>(step: JsonLLMStep<CTX, Schema>): JsonLLMStep<CTX, Schema>
     (step: StringLLMStep<CTX>): StringLLMStep<CTX>
     (step: ProgrammaticStep<CTX>): ProgrammaticStep<CTX>
 }
@@ -489,7 +488,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                           : 'default',
                 schema:
                     'schema' in step
-                        ? step.schema instanceof Zod.ZodSchema
+                        ? step.schema instanceof Zod.ZodType
                             ? step.schema
                             : undefined
                         : undefined,
@@ -528,7 +527,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                                 `AI-generated response is not valid JSON in step ${step.name}`,
                                 {
                                     response: stringResponse,
-                                    schema: zodToJsonSchema(step.schema),
+                                    schema: Zod.toJSONSchema(step.schema),
                                 },
                             )
                             throw new Error(`Response is not valid JSON for step ${step.name}`)
@@ -537,7 +536,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                                 `AI-generated response in step ${step.name} violates schema`,
                                 {
                                     response: stringResponse,
-                                    schema: zodToJsonSchema(step.schema),
+                                    schema: Zod.toJSONSchema(step.schema),
                                     errors: step.schema.safeParse(parsedJsonResponse).error,
                                 },
                             )
@@ -606,7 +605,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
         model: BasicModel | LlmAdapter | undefined,
         systemPrompt: string,
         messages: string,
-        schema?: Zod.ZodSchema,
+        schema?: Zod.ZodType,
     ) {
         const adapter: LlmAdapter =
             typeof model === 'string' || model === undefined
@@ -699,7 +698,7 @@ class WorkflowState<CTX> {
     }
 }
 
-function getOpenAiOptions(model: BasicModel, schema?: Zod.ZodSchema) {
+function getOpenAiOptions(model: BasicModel, schema?: Zod.ZodType) {
     const options: Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'> = {
         model,
     }
@@ -717,7 +716,7 @@ function getOpenAiOptions(model: BasicModel, schema?: Zod.ZodSchema) {
             type: 'json_schema',
             json_schema: {
                 name: 'detector_response',
-                schema: zodToJsonSchema(schema),
+                schema: Zod.toJSONSchema(schema),
             },
         }
     } else {
