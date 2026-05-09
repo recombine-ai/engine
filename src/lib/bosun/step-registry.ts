@@ -14,19 +14,9 @@ export interface StepDef {
     schema?: ZodType
 }
 
-/**
- * @deprecated use `StepDef` instead
- */
-export type StepTraceDef = StepDef
-
 export interface StepRegistry {
     addStep(def: StepDef): void
 }
-
-/**
- * @deprecated use `createStubRegistry` instead
- */
-export const createConsoleTracer = createStubRegistry
 
 /**
  * a stub registry, that just prints step in logs

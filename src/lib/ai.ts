@@ -1,25 +1,11 @@
 // cspell:words lstripBlocks
 import { randomUUID } from 'crypto'
-import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import nunjucks from 'nunjucks'
 import * as Zod from 'zod'
 import { Logger } from './interfaces'
 import { PromptFile } from './prompt-fs'
 import { createStubStepTracer, StepTrace, StepTracer } from './bosun/step-tracer'
 import { createStubRegistry, stdPrompt, StepRegistry } from './bosun/step-registry'
-import { createOpenAIAdapter } from './llm-adapters/openai'
-
-/**
- * Represents a basic model name for LLMs.
- */
-export type BasicModel =
-    | 'o3-mini-2025-01-31'
-    | 'o1-preview-2024-09-12'
-    | 'gpt-4o-2024-08-06'
-    | 'gpt-4o-2024-11-20'
-    | 'gpt-4.1-2025-04-14'
-    | 'o1-2024-12-17'
-    | (string & {}) // prevents compiler from simplifying the type to just `string`
 
 export interface LlmAdapter {
     /**
@@ -60,8 +46,8 @@ export interface ProgrammaticStep<CTX> extends BasicStep<CTX> {
 }
 
 export interface LLMStep<CTX> extends BasicStep<CTX> {
-    /** LLM to use. Can be a model name or an adapter. Defaults to gpt-4o */
-    model?: BasicModel | LlmAdapter
+    /** LLM adapter to use */
+    model: LlmAdapter
 
     /**
      * Prompt can be a simple string or a link to a file, loaded with `loadFile` function which
@@ -165,14 +151,6 @@ export interface Workflow<CTX> {
         contextProvider: (() => CTX) | (() => Promise<CTX>),
         beforeEach?: BeforeEachStep<CTX>,
     ) => Promise<string | null>
-
-    /**
-     * Add a step to workflow
-     * @deprecated use {@link WorkflowConfig#steps} instead
-     */
-    addStep<Schema extends Zod.ZodTypeAny>(step: JsonLLMStep<CTX, Schema>): void
-    addStep(step: StringLLMStep<CTX>): void
-    addStep(step: ProgrammaticStep<CTX>): void
 }
 
 type WorkflowStep<CTX> = StringLLMStep<CTX> | JsonLLMStep<CTX, any> | ProgrammaticStep<CTX>
@@ -234,7 +212,7 @@ export interface AIEngine {
     createConversation: (messages?: Message[]) => Conversation
 
     /**
-     * Get the function to create steps to use with workflow.addStep(step)
+     * Get the function to create steps to use with {@link WorkflowConfig#steps}
      * if you want to define steps outside of workflow.
      */
     getStepBuilder<CTX>(): StepBuilder<CTX>
@@ -254,20 +232,6 @@ export interface AIEngine {
  * to a string representation.
  */
 export interface Conversation {
-    /**
-     * Sets the name of the user in the conversation to be used in {@link toString}.
-     * @param name - The name to set for the user.
-     * @deprecated
-     */
-    setUserName(name: string): void
-
-    /**
-     * Sets the name of the AI agent in the conversation to be used in {@link toString}.
-     * @param name - The name to set for the agent.
-     * @deprecated
-     */
-    setAgentName(name: string): void
-
     /**
      * Sets the default formatter to stringify messages when toString is called.
      * @param formatter - A function that takes a message and returns a formatted string.
@@ -333,15 +297,6 @@ export interface Message {
  */
 export interface EngineConfig {
     /**
-     * Optional token storage object that provides access to authentication tokens.
-     * @property {object} tokenStorage - Object containing method to retrieve token.
-     * @property {() => Promise<string | null>} tokenStorage.getToken - Function that returns a
-     * promise resolving to an authentication token or null.
-     *
-     * @deprecated use {@link LlmAdapter} (which has its onw storage) in `model` field instead
-     */
-    tokenStorage?: { getToken: () => Promise<string | null> }
-    /**
      * Optional logger instance for handling log messages.
      */
     logger?: Logger
@@ -387,7 +342,6 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     const logger = cfg.logger || globalThis.console
     const stepTracer = cfg.stepTracer || createStubStepTracer(logger)
     const registry = cfg.stepRegistry || createStubRegistry(logger)
-    // tokenStorage is used by the default adapter to fetch API keys (backwards compatible)
 
     function createWorkflow<CTX extends object>({
         onError,
@@ -437,11 +391,6 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 await stepTracer.flush()
                 return state.isTerminated() ? null : messages.getProposedReply()
             },
-
-            addStep(step: StringLLMStep<CTX> | JsonLLMStep<CTX, any> | ProgrammaticStep<CTX>) {
-                addStepToTracer(step)
-                steps.push(step)
-            },
         }
 
         function addStepToTracer(step: WorkflowStep<CTX>) {
@@ -466,12 +415,7 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                 workflowId: name,
                 workflowRunId: state.runId,
                 createdAt: Date.now(),
-                model:
-                    typeof step.model === 'string'
-                        ? step.model
-                        : step.model
-                          ? JSON.stringify(step.model.getOptions())
-                          : 'default',
+                model: JSON.stringify(step.model.getOptions()),
                 schema:
                     'schema' in step
                         ? step.schema instanceof Zod.ZodType
@@ -588,18 +532,12 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     }
 
     async function runLLM(
-        model: BasicModel | LlmAdapter | undefined,
+        model: LlmAdapter,
         systemPrompt: string,
         messages: string,
         schema?: Zod.ZodType,
     ) {
-        const adapter: LlmAdapter =
-            typeof model === 'string' || model === undefined
-                ? createOpenAIAdapter(getOpenAiOptions(model || 'gpt-4o-2024-08-06', schema), {
-                      tokenStorage: cfg.tokenStorage || fallBackTokenStorage,
-                  })
-                : model
-        return adapter.generateResponse(systemPrompt, messages, schema)
+        return model.generateResponse(systemPrompt, messages, schema)
     }
 
     function renderPrompt(prompt: string, context?: object): string {
@@ -623,12 +561,6 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
             return (step: any) => step
         },
     }
-}
-
-const fallBackTokenStorage = {
-    async getToken() {
-        return process.env.OPENAI_API_KEY ?? null
-    },
 }
 
 class WorkflowState<CTX> {
@@ -684,34 +616,6 @@ class WorkflowState<CTX> {
     }
 }
 
-function getOpenAiOptions(model: BasicModel, schema?: Zod.ZodType) {
-    const options: Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'> = {
-        model,
-    }
-    const isReasoningModel = ['o3-', 'o1-', 'o1-preview-'].some((m) => model.startsWith(m))
-    if (isReasoningModel) {
-        if (!model.startsWith('o1-preview-')) {
-            options.reasoning_effort = 'high'
-        }
-    } else {
-        options.temperature = 0.1
-    }
-
-    if (schema) {
-        options.response_format = {
-            type: 'json_schema',
-            json_schema: {
-                name: 'detector_response',
-                schema: Zod.toJSONSchema(schema),
-            },
-        }
-    } else {
-        options.response_format = { type: 'text' }
-    }
-
-    return options
-}
-
 export function createConversation(initialMessages: Message[] = []): Conversation {
     const messages = initialMessages.map((msg) => ({
         ...msg,
@@ -754,12 +658,6 @@ export function createConversation(initialMessages: Message[] = []): Conversatio
         setProposedReply: (message: string) => (proposedReply = message),
         getProposedReply: () => proposedReply,
         getHistory: () => messages,
-        setUserName: (name: string) => {
-            names.user = name
-        },
-        setAgentName: (name: string) => {
-            names.agent = name
-        },
     }
 }
 

@@ -43,16 +43,14 @@ describe('conversationExample', () => {
             },
         ])
 
-        conversation.setUserName('Client')
-        conversation.setAgentName('Support')
         conversation.addMessage({ sender: 'user', text: 'I need help with my account' })
         conversation.addMessage({ sender: 'system', text: 'Ask for account details' })
         conversation.setProposedReply('Please provide your account number')
 
         const outputIgnoringAdded = conversation.toString({ ignoreAddedMessages: true })
         const expectedIgnoring = [
-            'Client: Hello, I need help with my order.',
-            'Support: Sure, I can help you with that.',
+            'User: Hello, I need help with my order.',
+            'Agent: Sure, I can help you with that.',
             'Proposed reply: Please provide your account number',
         ].join('\n')
         expect(outputIgnoringAdded).toBe(expectedIgnoring)
@@ -73,17 +71,15 @@ describe('conversationExample', () => {
             },
         ])
 
-        conversation.setUserName('Client')
-        conversation.setAgentName('Support')
         conversation.addMessage({ sender: 'user', text: 'I need help with my account' })
         conversation.addMessage({ sender: 'system', text: 'Ask for account details' })
         conversation.setProposedReply('Please provide your account number')
 
         const outputFull = conversation.toString()
         const expectedFull = [
-            'Client: Hello, I need help with my order.',
-            'Support: Sure, I can help you with that.',
-            'Client: I need help with my account',
+            'User: Hello, I need help with my order.',
+            'Agent: Sure, I can help you with that.',
+            'User: I need help with my account',
             'System: Ask for account details',
             'Proposed reply: Please provide your account number',
         ].join('\n')
@@ -117,11 +113,9 @@ describe('workflow.run', () => {
             execute: vi.fn(),
         })
         const wf = ai.createWorkflow({
-            steps: [dumbStep],
+            steps: [dumbStep, mainStep, smartStep],
             onError,
         })
-        wf.addStep(mainStep)
-        wf.addStep(smartStep)
 
         const ctx = {}
         const wfHandle = expect.objectContaining({
@@ -138,25 +132,8 @@ describe('workflow.run', () => {
     })
 
     it('executes smart steps with parsed response', async () => {
-        const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
-        OpenAI.mockReturnValue({
-            chat: {
-                completions: {
-                    create: vi.fn(() => ({
-                        choices: [
-                            {
-                                message: {
-                                    content: JSON.stringify({ name: 'John', age: 30 }),
-                                },
-                            },
-                        ],
-                    })),
-                },
-            },
-        })
         const ai = createAIEngine({
             logger: { ...console, debug: noop, error: noop },
-            tokenStorage: mockTokenStorage,
         })
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
@@ -166,10 +143,16 @@ describe('workflow.run', () => {
             age: z.number(),
         })
 
+        const mockAdapter = {
+            getOptions: () => ({}),
+            generateResponse: async () => JSON.stringify({ name: 'John', age: 30 }),
+        }
+
         const smartStep = step({
             name: 'smart-step',
             schema: testSchema,
             prompt: 'Get user info',
+            model: mockAdapter,
             execute: vi.fn(),
         })
 
@@ -189,32 +172,21 @@ describe('workflow.run', () => {
     })
 
     it('executes smart step with erroneous execution and error in onError', async () => {
-        const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
-        OpenAI.mockReturnValue({
-            chat: {
-                completions: {
-                    create: vi.fn(() => ({
-                        choices: [
-                            {
-                                message: {
-                                    content: JSON.stringify({ name: 'John', age: 30 }),
-                                },
-                            },
-                        ],
-                    })),
-                },
-            },
-        })
         const ai = createAIEngine({
             logger: { ...console, debug: noop, error: noop },
-            tokenStorage: mockTokenStorage,
         })
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
 
+        const mockAdapter = {
+            getOptions: () => ({}),
+            generateResponse: async () => 'ok',
+        }
+
         const smartStep = step({
             name: 'smart-step',
             prompt: 'Get user info',
+            model: mockAdapter,
             execute: vi.fn(async () => {
                 throw new Error('Execution failed')
             }),
@@ -233,25 +205,8 @@ describe('workflow.run', () => {
     })
 
     it('executes smart steps with corrupted JSON parsed response', async () => {
-        const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
-        OpenAI.mockReturnValue({
-            chat: {
-                completions: {
-                    create: vi.fn(() => ({
-                        choices: [
-                            {
-                                message: {
-                                    content: '{"name": "John", age: 30}', // Corrupted JSON with an extra quote
-                                },
-                            },
-                        ],
-                    })),
-                },
-            },
-        })
         const ai = createAIEngine({
             logger: { ...console, debug: noop, error: noop },
-            tokenStorage: mockTokenStorage,
         })
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
@@ -261,10 +216,16 @@ describe('workflow.run', () => {
             age: z.number(),
         })
 
+        const mockAdapter = {
+            getOptions: () => ({}),
+            generateResponse: async () => '{"name": "John", age: "30}', // Corrupted JSON with an extra quote
+        }
+
         const smartStep = step({
             name: 'smart-step',
             schema: testSchema,
             prompt: 'Get user info',
+            model: mockAdapter,
             execute: vi.fn(),
         })
 
@@ -285,29 +246,8 @@ describe('workflow.run', () => {
     })
 
     it('executes smart steps with a violated JSON response for the Zod schema', async () => {
-        const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
-        OpenAI.mockReturnValue({
-            chat: {
-                completions: {
-                    create: vi.fn(() => ({
-                        choices: [
-                            {
-                                message: {
-                                    content: JSON.stringify({
-                                        name: 'John',
-                                        age: 30,
-                                        isMarried: 'no',
-                                    }),
-                                },
-                            },
-                        ],
-                    })),
-                },
-            },
-        })
         const ai = createAIEngine({
             logger: { ...console, debug: noop, error: noop },
-            tokenStorage: mockTokenStorage,
         })
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
@@ -318,10 +258,17 @@ describe('workflow.run', () => {
             isMarried: z.boolean(),
         })
 
+        const mockAdapter = {
+            getOptions: () => ({}),
+            generateResponse: async () =>
+                JSON.stringify({ name: 'John', age: 30, isMarried: 'no' }),
+        }
+
         const smartStep = step({
             name: 'smart-step',
             schema: testSchema,
             prompt: 'Get user info',
+            model: mockAdapter,
             execute: vi.fn(),
         })
 
@@ -365,7 +312,7 @@ describe('workflow.run', () => {
             max_tokens: 11,
         }
         const llm = createOpenAIAdapter(options, {
-            tokenStorage: mockTokenStorage,
+            tokenStorage: { getToken: () => Promise.resolve('mocked') },
         })
         const s = step({ name: 's', prompt: 'P', model: llm, execute: vi.fn() })
         const wf = ai.createWorkflow({ steps: [s], onError })
@@ -403,72 +350,6 @@ describe('workflow.run', () => {
         expect(stepTracer.addStepTrace).toBeCalled()
         const firstCallArg = (stepTracer.addStepTrace as Mock).mock.calls[0][0]
         expect(firstCallArg.model).toBe(JSON.stringify(options))
-    })
-
-    it('is backward compatible: string model uses defaults (no schema)', async () => {
-        const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
-        const createMock = vi.fn().mockResolvedValue({
-            choices: [
-                {
-                    message: { content: 'ok' },
-                },
-            ],
-        })
-        OpenAI.mockReturnValue({
-            chat: { completions: { create: createMock } },
-        })
-
-        const ai = createAIEngine({
-            logger: { ...console, debug: noop, error: noop },
-            tokenStorage: mockTokenStorage,
-        })
-        const step = ai.getStepBuilder()
-        const cnv = ai.createConversation([])
-
-        const s = step({ name: 's', model: 'gpt-4o-2024-08-06', prompt: 'P', execute: vi.fn() })
-        const wf = ai.createWorkflow({ steps: [s], onError })
-        await wf.run(cnv, emptyContextProvider)
-
-        expect(createMock).toBeCalledWith(
-            expect.objectContaining({
-                model: 'gpt-4o-2024-08-06',
-                temperature: 0.1,
-                response_format: { type: 'text' },
-            }),
-        )
-    })
-
-    it('is backward compatible: omitted model uses default model and JSON schema formatting', async () => {
-        const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
-        const createMock = vi.fn().mockResolvedValue({
-            choices: [
-                {
-                    message: { content: JSON.stringify({ foo: 1 }) },
-                },
-            ],
-        })
-        OpenAI.mockReturnValue({
-            chat: { completions: { create: createMock } },
-        })
-
-        const ai = createAIEngine({
-            logger: { ...console, debug: noop, error: noop },
-            tokenStorage: mockTokenStorage,
-        })
-        const step = ai.getStepBuilder()
-        const cnv = ai.createConversation([])
-
-        const schema = z.object({ foo: z.number() })
-        const s = step({ name: 's', schema, prompt: 'P', execute: vi.fn() })
-        const wf = ai.createWorkflow({ steps: [s], onError })
-        await wf.run(cnv, emptyContextProvider)
-
-        expect(createMock).toBeCalledWith(
-            expect.objectContaining({
-                model: 'gpt-4o-2024-08-06',
-                response_format: expect.objectContaining({ type: 'json_schema' }),
-            }),
-        )
     })
 
     describe('workflow handle', () => {
@@ -601,10 +482,12 @@ describe('workflow.run', () => {
         it('adds all steps', async () => {
             const tracer = { addStep: vi.fn() }
             const { ai, step } = getAi(tracer)
+            const mockAdapter = createMockAdapter()
 
             const firstStep = step({
                 name: 'first-step',
                 prompt: '',
+                model: mockAdapter,
                 runIf: () => true,
                 execute: vi.fn(),
             })
@@ -612,6 +495,7 @@ describe('workflow.run', () => {
             const secondStep = step({
                 name: 'second-step',
                 prompt: '',
+                model: mockAdapter,
                 runIf: () => true,
                 execute: vi.fn(),
             })
@@ -619,15 +503,15 @@ describe('workflow.run', () => {
             const thirdStep = step({
                 name: 'third-step',
                 prompt: '',
+                model: mockAdapter,
                 runIf: () => true,
                 execute: vi.fn(),
             })
 
-            const wf = ai.createWorkflow({
-                steps: [firstStep, secondStep],
+            ai.createWorkflow({
+                steps: [firstStep, secondStep, thirdStep],
                 onError: noopA,
             })
-            wf.addStep(thirdStep)
 
             expect(tracer.addStep).toBeCalledTimes(3)
         })
@@ -908,7 +792,6 @@ function getAi(stepRegistry = { addStep: noop }) {
 
 const noop = () => {}
 const noopA = () => Promise.resolve()
-const mockTokenStorage = { getToken: () => Promise.resolve('mocked') }
 async function onError(err: any) {
     console.trace(err)
     throw err
