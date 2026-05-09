@@ -138,8 +138,6 @@ describe('workflow.run', () => {
     })
 
     it('executes smart steps with parsed response', async () => {
-        const prev = process.env.OPENAI_API_KEY
-        process.env.OPENAI_API_KEY = 'mocked'
         const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
         OpenAI.mockReturnValue({
             chat: {
@@ -158,6 +156,7 @@ describe('workflow.run', () => {
         })
         const ai = createAIEngine({
             logger: { ...console, debug: noop, error: noop },
+            tokenStorage: mockTokenStorage,
         })
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
@@ -180,7 +179,6 @@ describe('workflow.run', () => {
         })
 
         await wf.run(cnv, emptyContextProvider)
-        process.env.OPENAI_API_KEY = prev
 
         expect(smartStep.execute).toBeCalledWith(
             { name: 'John', age: 30 },
@@ -191,8 +189,6 @@ describe('workflow.run', () => {
     })
 
     it('executes smart step with erroneous execution and error in onError', async () => {
-        const prev = process.env.OPENAI_API_KEY
-        process.env.OPENAI_API_KEY = 'mocked'
         const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
         OpenAI.mockReturnValue({
             chat: {
@@ -211,6 +207,7 @@ describe('workflow.run', () => {
         })
         const ai = createAIEngine({
             logger: { ...console, debug: noop, error: noop },
+            tokenStorage: mockTokenStorage,
         })
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
@@ -230,15 +227,12 @@ describe('workflow.run', () => {
         })
 
         await wf.run(cnv, emptyContextProvider)
-        process.env.OPENAI_API_KEY = prev
 
         expect(smartStep.execute).toBeCalled()
         expect(onError).toHaveBeenCalled()
     })
 
     it('executes smart steps with corrupted JSON parsed response', async () => {
-        const prev = process.env.OPENAI_API_KEY
-        process.env.OPENAI_API_KEY = 'mocked'
         const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
         OpenAI.mockReturnValue({
             chat: {
@@ -257,6 +251,7 @@ describe('workflow.run', () => {
         })
         const ai = createAIEngine({
             logger: { ...console, debug: noop, error: noop },
+            tokenStorage: mockTokenStorage,
         })
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
@@ -280,7 +275,6 @@ describe('workflow.run', () => {
         })
 
         await wf.run(cnv, emptyContextProvider)
-        process.env.OPENAI_API_KEY = prev
 
         expect(smartStep.execute).not.toHaveBeenCalled()
         expect(mockOnError).toHaveBeenCalledOnce()
@@ -291,8 +285,6 @@ describe('workflow.run', () => {
     })
 
     it('executes smart steps with a violated JSON response for the Zod schema', async () => {
-        const prev = process.env.OPENAI_API_KEY
-        process.env.OPENAI_API_KEY = 'mocked'
         const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
         OpenAI.mockReturnValue({
             chat: {
@@ -315,6 +307,7 @@ describe('workflow.run', () => {
         })
         const ai = createAIEngine({
             logger: { ...console, debug: noop, error: noop },
+            tokenStorage: mockTokenStorage,
         })
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
@@ -339,7 +332,6 @@ describe('workflow.run', () => {
         })
 
         await wf.run(cnv, emptyContextProvider)
-        process.env.OPENAI_API_KEY = prev
 
         expect(smartStep.execute).not.toHaveBeenCalled()
         expect(mockOnError).toHaveBeenCalledOnce()
@@ -350,8 +342,6 @@ describe('workflow.run', () => {
     })
 
     it('passes explicit adapter options to OpenAI', async () => {
-        const prev = process.env.OPENAI_API_KEY
-        process.env.OPENAI_API_KEY = 'mocked'
         const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
         const createMock = vi.fn().mockResolvedValue({
             choices: [
@@ -375,11 +365,7 @@ describe('workflow.run', () => {
             max_tokens: 11,
         }
         const llm = createOpenAIAdapter(options, {
-            tokenStorage: {
-                async getToken() {
-                    return process.env.OPENAI_API_KEY || null
-                },
-            },
+            tokenStorage: mockTokenStorage,
         })
         const s = step({ name: 's', prompt: 'P', model: llm, execute: vi.fn() })
         const wf = ai.createWorkflow({ steps: [s], onError })
@@ -393,7 +379,6 @@ describe('workflow.run', () => {
                 model: 'gpt-4o-2024-08-06',
             }),
         )
-        process.env.OPENAI_API_KEY = prev
     })
 
     it('adds adapter options to step trace model as JSON string', async () => {
@@ -421,9 +406,6 @@ describe('workflow.run', () => {
     })
 
     it('is backward compatible: string model uses defaults (no schema)', async () => {
-        // String model path: force client invocation to observe defaults
-        const prev = process.env.OPENAI_API_KEY
-        process.env.OPENAI_API_KEY = 'mocked'
         const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
         const createMock = vi.fn().mockResolvedValue({
             choices: [
@@ -436,7 +418,10 @@ describe('workflow.run', () => {
             chat: { completions: { create: createMock } },
         })
 
-        const ai = createAIEngine({ logger: { ...console, debug: noop, error: noop } })
+        const ai = createAIEngine({
+            logger: { ...console, debug: noop, error: noop },
+            tokenStorage: mockTokenStorage,
+        })
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
 
@@ -451,13 +436,9 @@ describe('workflow.run', () => {
                 response_format: { type: 'text' },
             }),
         )
-        process.env.OPENAI_API_KEY = prev
     })
 
     it('is backward compatible: omitted model uses default model and JSON schema formatting', async () => {
-        // Omitted model path with schema: ensure JSON schema formatting defaults
-        const prev = process.env.OPENAI_API_KEY
-        process.env.OPENAI_API_KEY = 'mocked'
         const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
         const createMock = vi.fn().mockResolvedValue({
             choices: [
@@ -470,7 +451,10 @@ describe('workflow.run', () => {
             chat: { completions: { create: createMock } },
         })
 
-        const ai = createAIEngine({ logger: { ...console, debug: noop, error: noop } })
+        const ai = createAIEngine({
+            logger: { ...console, debug: noop, error: noop },
+            tokenStorage: mockTokenStorage,
+        })
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
 
@@ -485,7 +469,6 @@ describe('workflow.run', () => {
                 response_format: expect.objectContaining({ type: 'json_schema' }),
             }),
         )
-        process.env.OPENAI_API_KEY = prev
     })
 
     describe('workflow handle', () => {
@@ -741,7 +724,6 @@ describe('workflow.run', () => {
             const engine = makeAi(stepTracer)
             const programmatic = engine.getStepBuilder()({
                 name: 'prog-step',
-                model: mockAdapter,
                 execute: vi.fn(),
             })
             const wf = engine.createWorkflow({ steps: [programmatic], onError: async () => {} })
@@ -926,6 +908,7 @@ function getAi(stepRegistry = { addStep: noop }) {
 
 const noop = () => {}
 const noopA = () => Promise.resolve()
+const mockTokenStorage = { getToken: () => Promise.resolve('mocked') }
 async function onError(err: any) {
     console.trace(err)
     throw err

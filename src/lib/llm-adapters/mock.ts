@@ -5,9 +5,9 @@ export function createMockAdapter(): LlmAdapter {
         getOptions: () => ({ model: 'mock' }),
         async generateResponse(_systemPrompt: string, _messages: string, schema?): Promise<string> {
             if (schema) {
-                return JSON.stringify({ message: 'mock response' })
+                return JSON.stringify({ message: 'canned response', reasons: [] })
             }
-            return 'mock response'
+            return 'canned response'
         },
     }
 }
