@@ -5,8 +5,6 @@ import { z } from 'zod'
 import { createOpenAIAdapter } from './llm-adapters/openai'
 import { createMockAdapter } from './llm-adapters/mock'
 
-// TODO: clean-up stdout by providing noop-stepTracer in all tests which don't have its own
-
 // Mock OpenAI at the top level
 vi.mock('openai', () => {
     const mockOpeAi = vi.fn(() => ({
@@ -132,11 +130,7 @@ describe('workflow.run', () => {
     })
 
     it('executes smart steps with parsed response', async () => {
-        const ai = createAIEngine({
-            logger: { ...console, debug: noop, error: noop },
-        })
-        const step = ai.getStepBuilder()
-        const cnv = ai.createConversation([])
+        const { ai, step, cnv } = getAi()
 
         const testSchema = z.object({
             name: z.string(),
@@ -172,11 +166,7 @@ describe('workflow.run', () => {
     })
 
     it('executes smart step with erroneous execution and error in onError', async () => {
-        const ai = createAIEngine({
-            logger: { ...console, debug: noop, error: noop },
-        })
-        const step = ai.getStepBuilder()
-        const cnv = ai.createConversation([])
+        const { ai, step, cnv } = getAi()
 
         const mockAdapter = {
             getOptions: () => ({}),
@@ -205,11 +195,7 @@ describe('workflow.run', () => {
     })
 
     it('executes smart steps with corrupted JSON parsed response', async () => {
-        const ai = createAIEngine({
-            logger: { ...console, debug: noop, error: noop },
-        })
-        const step = ai.getStepBuilder()
-        const cnv = ai.createConversation([])
+        const { ai, step, cnv } = getAi()
 
         const testSchema = z.object({
             name: z.string(),
@@ -246,11 +232,7 @@ describe('workflow.run', () => {
     })
 
     it('executes smart steps with a violated JSON response for the Zod schema', async () => {
-        const ai = createAIEngine({
-            logger: { ...console, debug: noop, error: noop },
-        })
-        const step = ai.getStepBuilder()
-        const cnv = ai.createConversation([])
+        const { ai, step, cnv } = getAi()
 
         const testSchema = z.object({
             name: z.string(),
@@ -301,9 +283,7 @@ describe('workflow.run', () => {
             chat: { completions: { create: createMock } },
         })
 
-        const ai = createAIEngine({ logger: { ...console, debug: noop, error: noop } })
-        const step = ai.getStepBuilder()
-        const cnv = ai.createConversation([])
+        const { ai, step, cnv } = getAi()
 
         const options = {
             model: 'gpt-4o-2024-08-06',
@@ -332,7 +312,7 @@ describe('workflow.run', () => {
         const stepTracer = makeStepTracer()
         const ai = createAIEngine({
             stepTracer,
-            logger: { ...console, debug: noop, error: noop },
+            logger: { ...console, debug: noop, error: noop, log: noop },
         })
         const step = ai.getStepBuilder()
         const cnv = ai.createConversation([])
@@ -521,7 +501,7 @@ describe('workflow.run', () => {
         const mockAdapter = createMockAdapter()
         function makeAi(stepTracer: ReturnType<typeof makeStepTracer>) {
             return createAIEngine({
-                logger: { ...console, debug: vi.fn(), error: vi.fn() },
+                logger: { ...console, debug: noop, error: noop, log: noop },
                 stepTracer,
             })
         }
@@ -783,7 +763,7 @@ function getAi(stepRegistry = { addStep: noop }) {
     const ai = createAIEngine({
         stepRegistry,
         stepTracer: { addStepTrace: noop, flush: noopA },
-        logger: { ...console, debug: noop, error: noop },
+        logger: { ...console, debug: noop, error: noop, log: noop },
     })
     const step = ai.getStepBuilder()
     const cnv = ai.createConversation([])
