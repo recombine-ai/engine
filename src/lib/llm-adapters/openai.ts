@@ -9,8 +9,6 @@ export type OpenAIAdapterAuth = {
     tokenStorage: { getToken: () => Promise<string | null> }
 }
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
 export function createOpenAIAdapter(
     options: OpenAIChatOptions,
     auth: OpenAIAdapterAuth,
@@ -36,13 +34,6 @@ export function createOpenAIAdapter(
             const apiKey = await auth.tokenStorage.getToken()
             if (!apiKey) {
                 throw new Error('OpenAI API key is not set')
-            }
-            if (apiKey === '__TESTING__') {
-                await delay(100)
-                if (options.response_format && 'json_schema' in options.response_format) {
-                    return JSON.stringify({ message: 'canned response', reasons: [] })
-                }
-                return 'canned response'
             }
 
             const client = new OpenAI({ apiKey })

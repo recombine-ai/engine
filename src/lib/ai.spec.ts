@@ -3,17 +3,11 @@ import { createAIEngine } from './ai'
 import { PromptFile } from './prompt-fs'
 import { z } from 'zod'
 import { createOpenAIAdapter } from './llm-adapters/openai'
+import { createMockAdapter } from './llm-adapters/mock'
 
 // TODO: clean-up stdout by providing noop-stepTracer in all tests which don't have its own
 
 // Mock OpenAI at the top level
-// NOTE ABOUT OPENAI_API_KEY in tests:
-// - For tests that need to inspect arguments passed to OpenAI (via mocking),
-//   we must avoid the adapter's __TESTING__ short-circuit and prevent a missing
-//   API key error. Setting OPENAI_API_KEY to a non-__TESTING__ value (e.g. 'mocked')
-//   satisfies both.
-// - For tests that don't need to hit the mocked client (just canned behavior),
-//   we set OPENAI_API_KEY='__TESTING__' so the adapter returns canned responses.
 vi.mock('openai', () => {
     const mockOpeAi = vi.fn(() => ({
         chat: {
@@ -99,8 +93,8 @@ describe('conversationExample', () => {
 
 describe('workflow.run', () => {
     it('runs all steps', async () => {
-        process.env.OPENAI_API_KEY = '__TESTING__'
         const { ai, step, cnv } = getAi()
+        const mockAdapter = createMockAdapter()
 
         const dumbStep = step({
             name: 'dumb-step',
@@ -111,6 +105,7 @@ describe('workflow.run', () => {
         const mainStep = step({
             name: 'main',
             prompt: mainPrompt,
+            model: mockAdapter,
             execute: vi.fn(),
         })
         const smartStep = step({
@@ -118,6 +113,7 @@ describe('workflow.run', () => {
             runIf: vi.fn(() => true),
             schema: z.object({}),
             prompt: { content: vi.fn(() => 'hello') } as any as PromptFile,
+            model: mockAdapter,
             execute: vi.fn(),
         })
         const wf = ai.createWorkflow({
@@ -142,8 +138,6 @@ describe('workflow.run', () => {
     })
 
     it('executes smart steps with parsed response', async () => {
-        // We set a non-__TESTING__ value so the adapter does not short-circuit
-        // and we can assert the exact payload passed to OpenAI's client.
         const prev = process.env.OPENAI_API_KEY
         process.env.OPENAI_API_KEY = 'mocked'
         const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
@@ -197,8 +191,6 @@ describe('workflow.run', () => {
     })
 
     it('executes smart step with erroneous execution and error in onError', async () => {
-        // We set a non-__TESTING__ value so the adapter does not short-circuit
-        // and we can assert the exact payload passed to OpenAI's client.
         const prev = process.env.OPENAI_API_KEY
         process.env.OPENAI_API_KEY = 'mocked'
         const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
@@ -245,8 +237,6 @@ describe('workflow.run', () => {
     })
 
     it('executes smart steps with corrupted JSON parsed response', async () => {
-        // We set a non-__TESTING__ value so the adapter does not short-circuit
-        // and we can assert the exact payload passed to OpenAI's client.
         const prev = process.env.OPENAI_API_KEY
         process.env.OPENAI_API_KEY = 'mocked'
         const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
@@ -301,8 +291,6 @@ describe('workflow.run', () => {
     })
 
     it('executes smart steps with a violated JSON response for the Zod schema', async () => {
-        // We set a non-__TESTING__ value so the adapter does not short-circuit
-        // and we can assert the exact payload passed to OpenAI's client.
         const prev = process.env.OPENAI_API_KEY
         process.env.OPENAI_API_KEY = 'mocked'
         const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
@@ -362,7 +350,6 @@ describe('workflow.run', () => {
     })
 
     it('passes explicit adapter options to OpenAI', async () => {
-        // Use a non-__TESTING__ value to force client invocation and inspect options
         const prev = process.env.OPENAI_API_KEY
         process.env.OPENAI_API_KEY = 'mocked'
         const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
@@ -503,7 +490,6 @@ describe('workflow.run', () => {
 
     describe('workflow handle', () => {
         it('terminates the workflow', async () => {
-            process.env.OPENAI_API_KEY = '__TESTING__'
             const { ai, step, cnv } = getAi()
             const firstStep = step({
                 name: 'first-step',
@@ -528,7 +514,6 @@ describe('workflow.run', () => {
             expect(secondStep.execute).not.toHaveBeenCalled()
         })
         it('rewinds to the specified step', async () => {
-            process.env.OPENAI_API_KEY = '__TESTING__'
             const { ai, step, cnv } = getAi()
 
             let secondStepCalled = false
@@ -558,7 +543,6 @@ describe('workflow.run', () => {
             expect(firstStep.execute).toBeCalledTimes(2)
         })
         it('rewinds up to maxAttempts', async () => {
-            process.env.OPENAI_API_KEY = '__TESTING__'
             const { ai, step, cnv } = getAi()
             const mockOnError = vi.fn()
 
@@ -588,7 +572,6 @@ describe('workflow.run', () => {
             expect(mockOnError).toHaveBeenCalledOnce()
         })
         it('resets the counter when passed to the next step', async () => {
-            process.env.OPENAI_API_KEY = '__TESTING__'
             const { ai, step, cnv } = getAi()
             const mockOnError = vi.fn()
 
@@ -668,10 +651,10 @@ describe('workflow.run', () => {
     })
 
     describe('stepTracer integration', () => {
+        const mockAdapter = createMockAdapter()
         function makeAi(stepTracer: ReturnType<typeof makeStepTracer>) {
             return createAIEngine({
                 logger: { ...console, debug: vi.fn(), error: vi.fn() },
-                tokenStorage: { getToken: () => Promise.resolve('__TESTING__') },
                 stepTracer,
             })
         }
@@ -681,6 +664,7 @@ describe('workflow.run', () => {
             const step = engine.getStepBuilder()({
                 name: 'hello-step',
                 prompt: 'Say hello',
+                model: mockAdapter,
                 execute: vi.fn(),
             })
             const wf = engine.createWorkflow({
@@ -711,6 +695,7 @@ describe('workflow.run', () => {
                 name: 'json-step',
                 prompt: 'Give json',
                 schema,
+                model: mockAdapter,
                 execute: vi.fn(),
             })
             const wf = engine.createWorkflow({ steps: [jsonStep], onError: async () => {} })
@@ -733,6 +718,7 @@ describe('workflow.run', () => {
             const failingStep = engine.getStepBuilder()({
                 name: 'fail-step',
                 prompt: 'Cause an error',
+                model: mockAdapter,
                 execute: vi.fn(() => {
                     throw new Error('boom')
                 }),
@@ -755,6 +741,7 @@ describe('workflow.run', () => {
             const engine = makeAi(stepTracer)
             const programmatic = engine.getStepBuilder()({
                 name: 'prog-step',
+                model: mockAdapter,
                 execute: vi.fn(),
             })
             const wf = engine.createWorkflow({ steps: [programmatic], onError: async () => {} })
