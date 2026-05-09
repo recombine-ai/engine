@@ -4,10 +4,9 @@ import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completion
 import nunjucks from 'nunjucks'
 import * as Zod from 'zod'
 import { Logger } from './interfaces'
-import { makeAction, SendAction } from './bosun/action'
 import { PromptFile } from './prompt-fs'
-import { createStubStepTracer, StepTrace, StepTracer } from './bosun/stepTracer'
-import { createStubRegistry, stdPrompt, StepRegistry, Tracer } from './bosun/tracer'
+import { createStubStepTracer, StepTrace, StepTracer } from './bosun/step-tracer'
+import { createStubRegistry, stdPrompt, StepRegistry } from './bosun/step-registry'
 import { createOpenAIAdapter } from './llm-adapters/openai'
 
 /**
@@ -346,18 +345,8 @@ export interface EngineConfig {
      * Optional logger instance for handling log messages.
      */
     logger?: Logger
-    /**
-     * Optional function for sending actions.
-     */
-    sendAction?: SendAction
     /** traces received prompt, rendered prompt, context and other useful info about LLM execution */
     stepTracer?: StepTracer
-    /**
-     * registers steps in workflow
-     * @deprecated use `stepRegistry` instead
-     **/
-    tracer?: Tracer
-
     /**
      * registers steps in workflow
      */
@@ -397,7 +386,7 @@ export interface EngineConfig {
 export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
     const logger = cfg.logger || globalThis.console
     const stepTracer = cfg.stepTracer || createStubStepTracer(logger)
-    const registry = cfg.stepRegistry || cfg.tracer || createStubRegistry(logger)
+    const registry = cfg.stepRegistry || createStubRegistry(logger)
     // tokenStorage is used by the default adapter to fetch API keys (backwards compatible)
 
     function createWorkflow<CTX extends object>({
@@ -427,8 +416,6 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                     }
                     if (!step.runIf || (await step.runIf(messages, ctx))) {
                         // TODO: drop actions, they are replaced by traces
-                        const action = makeAction(cfg.sendAction, 'AI', step.name)
-                        await action('started')
 
                         didExecute = true
                         if (beforeExecute && !beforeHookExecuted) {
@@ -440,7 +427,6 @@ export function createAIEngine(cfg: EngineConfig = {}): AIEngine {
                         } else {
                             await runProgrammaticStep(step, messages, ctx, state)
                         }
-                        await action('completed')
                     }
                 } while (state.next())
 

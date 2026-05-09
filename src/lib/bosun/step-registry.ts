@@ -19,11 +19,6 @@ export interface StepDef {
  */
 export type StepTraceDef = StepDef
 
-/**
- * @deprecated use `StepRegistry` instead
- */
-export type Tracer = StepRegistry
-
 export interface StepRegistry {
     addStep(def: StepDef): void
 }
@@ -36,7 +31,7 @@ export const createConsoleTracer = createStubRegistry
 /**
  * a stub registry, that just prints step in logs
  */
-export function createStubRegistry(logger: Logger): Tracer {
+export function createStubRegistry(logger: Logger): StepRegistry {
     return {
         addStep(def) {
             logger.debug('Step registry, step added:', def)

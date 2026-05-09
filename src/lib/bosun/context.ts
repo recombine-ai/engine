@@ -53,12 +53,10 @@ class Context<T extends Ctx> {
     }
 
     setPromptContextMapper(promptMapper: (ctx: T) => object) {
-        console.log('--- setPromptContextMapper ---')
         this.#promptMapper = promptMapper
     }
 
     getPromptContextMapper() {
-        console.log('--- getPromptContextMapper ---')
         return this.#promptMapper
     }
 }

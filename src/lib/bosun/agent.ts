@@ -2,10 +2,10 @@ import { Message } from '../ai'
 import { Logger, Scheduler } from '../interfaces'
 import { SendAction } from './action'
 import { Context } from './context'
-import { StepRegistry, Tracer } from './tracer'
-import { StepTracer } from './stepTracer'
-import { ApiCallTracer } from './apiCallTracer'
-import { ConversationalTracer } from './conversationalTracer'
+import { StepRegistry } from './step-registry'
+import { StepTracer } from './step-tracer'
+import { ApiCallTracer } from './api-call-tracer'
+import { ConversationalTracer } from './conversational-tracer'
 
 /**
  * Bosun is a UI for testing Recombine AI agents. It enables testing complex agent interactions with
@@ -29,8 +29,6 @@ import { ConversationalTracer } from './conversationalTracer'
  */
 type DefaultContext = Record<string, any>
 export interface TestAgentFactoryProps<CTX extends DefaultContext = DefaultContext> {
-    /** @deprecated */
-    tracer: Tracer
     stepRegistry: StepRegistry
     /**
      * Optional tracer for recording API calls (e.g. generated OpenAPI SDK operations).
