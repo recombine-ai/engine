@@ -1,5 +1,22 @@
 # Changelog
 
+### 0.11.4 → 1.0.0
+
+- **Breaking:** `model` field on `LLMStep` is now required and must be an `LlmAdapter` (string model names removed)
+- **Breaking:** OpenAI adapter no longer embeds API-key management; pass a pre-configured `OpenAI` client instead
+- **Breaking:** Removed deprecated `Conversation.setUserName()` / `setAgentName()` (defaults: "User" / "Agent")
+- **Breaking:** Removed deprecated `Workflow.addStep()` – pass all steps via `WorkflowConfig#steps`
+- **Breaking:** Removed deprecated `EngineConfig.tokenStorage`, `sendAction`, and `tracer` (use `stepRegistry`)
+- **Breaking:** Upgraded `zod` from v3 to v4; replaced `zod-to-json-schema` with built-in `Zod.toJSONSchema`
+- Removed deprecated aliases (`Tracer`, `StepTraceDef`, `BasicModel`, `createConsoleTracer`)
+- Added `createOpenAIStreamAdapter` to `llm-adapters`
+- Added `createMockAdapter` to `llm-adapters` for testing without OpenAI keys
+- Added streaming engine (`createAIStreamEngine`) with filter support
+
+### 0.11.3 → 0.11.4 (unstable)
+
+- Added `EngineConfig#nunjucksEnv` – Optional nunjucks Environment to customize prompt rendering.
+
 ### 0.11.2 → 0.11.3 (unstable)
 
 - Added `hangup-requested` conversational trace event type

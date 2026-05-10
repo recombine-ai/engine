@@ -1,6 +1,6 @@
 {
     "name": "@recombine-ai/engine",
-    "version": "0.11.4",
+    "version": "1.0.0-beta-1",
     "description": "Recombine AI engine for creating conversational AI agents",
     "repository": {
         "url": "git+https://github.com/recombine-ai/engine.git"
@@ -40,6 +40,7 @@
     "dependencies": {
         "nunjucks": "^3.2.4",
         "openai": "6.8.1",
+        "undici": "^7.25.0",
         "zod": "4.4.3"
     },
     "husky": {
