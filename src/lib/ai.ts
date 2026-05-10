@@ -296,20 +296,15 @@ export interface Message {
  * Configuration options for the Engine.
  */
 export interface EngineConfig {
-    /**
-     * Optional logger instance for handling log messages.
-     */
+    /**  Optional logger instance for handling log messages.  */
     logger?: Logger
     /** traces received prompt, rendered prompt, context and other useful info about LLM execution */
     stepTracer?: StepTracer
-    /**
-     * registers steps in workflow
-     */
+
+    /** registers steps in workflow to be available in Bosun IDE */
     stepRegistry?: StepRegistry
 
-    /**
-     * Optional nunjucks Environment to customize prompt rendering.
-     */
+    /** Optional nunjucks Environment to customize prompt rendering.  */
     nunjucksEnv?: nunjucks.Environment
 }
 

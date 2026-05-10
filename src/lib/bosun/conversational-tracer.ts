@@ -1,7 +1,9 @@
 import { Logger } from '../interfaces'
 
 /**
- * Generic conversational event tracing. Represents “something happened in the conversation” (e.g. message received/sent, streaming finished, handler invoked) that UIs may want to show on the same per-conversation timeline.
+ * Generic conversational event tracing. Represents “something happened in the conversation” (e.g.
+ * message received/sent, streaming finished, handler invoked) that UIs may want to show on the same
+ * per-conversation timeline.
  */
 export type ConversationalTrace = {
     /** Unique ID for the trace */

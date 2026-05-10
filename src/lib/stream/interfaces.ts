@@ -4,26 +4,40 @@ import { ConversationalTracer, StepRegistry, StepTracer } from '../bosun'
 import { PromptFile } from '../prompt-fs'
 
 export interface AIStreamEngine {
+    /** creates streaming workflow */
     createWorkflow: <CTX extends {}>(
         config: WorkflowConfig<CTX>,
     ) => {
+        /**
+         * Runs streaming workflow (starts stream)
+         * @param messages
+         * @param ctx – context to be used in prompt
+         * @returns
+         */
         run: (messages: Message[], ctx: CTX) => Promise<ReadableStream<ResponseChunk>>
     }
 }
 
 export interface StreamingEngineConfig {
-    logger: Logger
-    stepRegistry: StepRegistry
+    /**  Optional logger instance for handling log messages.  */
+    logger?: Logger
+    /** registers steps in workflow to be available in Bosun IDE */
+    stepRegistry?: StepRegistry
+    /** traces received prompt, rendered prompt, context and other useful info about LLM execution */
     stepTracer?: StepTracer
+    /** same as stepTracer but for “something happened in the conversation” events  */
     conversationalTracer?: ConversationalTracer
-    onQuotaExceeded?: (error: Error) => Promise<void>
 }
 
 export interface WorkflowConfig<CTX> {
+    /** name of the workflow and its only step to appear in Bosun and in traces */
     name: string
+    /** system prompt */
     prompt: string | PromptFile
+    /** LLM model with streaming support */
     model: LlmStreamAdapter
     onError: (error: Error | string, ctx: CTX) => Promise<void>
+    /** filter out some tokens on the fly */
     filter?: ProgrammaticFilter // only one filter supported for now, not sure how to implement parallel filters yet
 }
 
