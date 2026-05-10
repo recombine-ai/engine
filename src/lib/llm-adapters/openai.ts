@@ -3,16 +3,10 @@ import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completion
 import type { LlmAdapter } from '../ai'
 import { type ZodType, toJSONSchema } from 'zod'
 
-export type OpenAIChatOptions = Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'>
+type OpenaiOptionsToSend = Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'>
+export type OpenAIChatOptions = Omit<OpenaiOptionsToSend, 'response_format'>
 
-export type OpenAIAdapterAuth = {
-    tokenStorage: { getToken: () => Promise<string | null> }
-}
-
-export function createOpenAIAdapter(
-    options: OpenAIChatOptions,
-    auth: OpenAIAdapterAuth,
-): LlmAdapter {
+export function createOpenAIAdapter(options: OpenAIChatOptions, client = new OpenAI()): LlmAdapter {
     return {
         getOptions: () => options,
         async generateResponse(
@@ -20,7 +14,7 @@ export function createOpenAIAdapter(
             messages: string,
             schema?: ZodType,
         ): Promise<string> {
-            const finalOptions = { ...options }
+            const finalOptions: OpenaiOptionsToSend = { ...options }
             if (schema) {
                 finalOptions.response_format = {
                     type: 'json_schema',
@@ -31,12 +25,7 @@ export function createOpenAIAdapter(
                     },
                 }
             }
-            const apiKey = await auth.tokenStorage.getToken()
-            if (!apiKey) {
-                throw new Error('OpenAI API key is not set')
-            }
 
-            const client = new OpenAI({ apiKey })
             const response = await client.chat.completions.create({
                 messages: [
                     { role: 'system', content: systemPrompt },

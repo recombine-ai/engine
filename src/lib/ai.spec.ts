@@ -271,16 +271,12 @@ describe('workflow.run', () => {
     })
 
     it('passes explicit adapter options to OpenAI', async () => {
-        const { OpenAI } = (await import('openai')) as any as { OpenAI: Mock }
         const createMock = vi.fn().mockResolvedValue({
             choices: [
                 {
                     message: { content: 'ok' },
                 },
             ],
-        })
-        OpenAI.mockReturnValue({
-            chat: { completions: { create: createMock } },
         })
 
         const { ai, step, cnv } = getAi()
@@ -291,9 +287,10 @@ describe('workflow.run', () => {
             user: 'tester',
             max_tokens: 11,
         }
-        const llm = createOpenAIAdapter(options, {
-            tokenStorage: { getToken: () => Promise.resolve('mocked') },
-        })
+        const mockClient = {
+            chat: { completions: { create: createMock } },
+        }
+        const llm = createOpenAIAdapter(options, mockClient as any)
         const s = step({ name: 's', prompt: 'P', model: llm, execute: vi.fn() })
         const wf = ai.createWorkflow({ steps: [s], onError })
         await wf.run(cnv, emptyContextProvider)
