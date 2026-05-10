@@ -1,5 +1,7 @@
 export * from './lib/ai'
 
+export * from './lib/stream'
+
 export * from './lib/schedule'
 
 export * from './lib/interfaces'
