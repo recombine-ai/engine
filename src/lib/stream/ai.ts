@@ -1,6 +1,5 @@
 // cspell:words TTFT lstrip
 import nunjucks from 'nunjucks'
-import { RateLimitError } from 'openai'
 
 import { Message } from '../ai'
 import { createStubStepTracer, StepTrace } from '../bosun'
@@ -25,9 +24,10 @@ export function createAIStreamEngine(cfg: StreamingEngineConfig): AIStreamEngine
         filter = defaultFilter,
         onError,
     }: WorkflowConfig<CTX>) {
-        cfg.logger.debug('streamAiEngine.createWorkflow')
-        const stepTracer = cfg.stepTracer || createStubStepTracer(cfg.logger)
-        cfg.stepRegistry.addStep({
+        const logger = cfg.logger || console
+        logger.debug('streamAiEngine.createWorkflow')
+        const stepTracer = cfg.stepTracer || createStubStepTracer(logger)
+        cfg.stepRegistry?.addStep({
             type: 'streaming-response',
             name,
             prompt: stdPrompt(prompt),
@@ -37,7 +37,7 @@ export function createAIStreamEngine(cfg: StreamingEngineConfig): AIStreamEngine
             let streamCancelled = false
             return new ReadableStream<ResponseChunk>({
                 cancel: (reason) => {
-                    cfg.logger.debug(`streamingWorkflow.run cancelled: ${reason}`)
+                    logger.debug(`streamingWorkflow.run cancelled: ${reason}`)
                     streamCancelled = true
                 },
                 start: async (controller) => {
@@ -51,16 +51,13 @@ export function createAIStreamEngine(cfg: StreamingEngineConfig): AIStreamEngine
                         controller.close()
                     } catch (e) {
                         if (streamCancelled) {
-                            cfg.logger.debug(
+                            logger.debug(
                                 'streamingWorkflow.run will not propagate error due to stream cancellation',
                                 e,
                             )
                             return
                         }
                         controller.error(e)
-                        if (e instanceof RateLimitError && cfg.onQuotaExceeded) {
-                            await cfg.onQuotaExceeded(e)
-                        }
                         await onError(e as Error | string, ctx)
                     }
                 },
@@ -72,9 +69,9 @@ export function createAIStreamEngine(cfg: StreamingEngineConfig): AIStreamEngine
             ctx: CTX,
         ): Promise<ReadableStream<ResponseChunk>> {
             const runId = crypto.randomUUID()
-            cfg.logger.debug(`streamingWorkflow.run runId: ${runId}`)
+            logger.debug(`streamingWorkflow.run runId: ${runId}`)
             const startTime = performance.now()
-            const transcript = createTranscript(cfg.logger, messages)
+            const transcript = createTranscript(logger, messages)
 
             let currentFilter: ProgrammaticFilter | null = null
             let filteredTokens: string[] = []
@@ -99,7 +96,7 @@ export function createAIStreamEngine(cfg: StreamingEngineConfig): AIStreamEngine
             try {
                 mainStepStream = await model.generateStream(renderedPrompt, stringifiedConversation)
             } catch (error) {
-                cfg.logger.error('AI Engine Stream: LLM error', { error })
+                logger.error('AI Engine Stream: LLM error', { error })
                 if (mainStepTrace) {
                     mainStepTrace.error = error instanceof Error ? error : new Error(String(error))
                     cfg.stepTracer?.addStepTrace(mainStepTrace)
@@ -107,24 +104,20 @@ export function createAIStreamEngine(cfg: StreamingEngineConfig): AIStreamEngine
                 }
                 throw error
             }
-            cfg.logger.debug(
-                `[MARK] stream created: ${(performance.now() - startTime).toFixed(2)}ms`,
-            )
+            logger.debug(`[MARK] stream created: ${(performance.now() - startTime).toFixed(2)}ms`)
 
             let measureTtft = true
             let streamCancelled = false
             return new ReadableStream<ResponseChunk>({
                 cancel: (reason) => {
-                    cfg.logger.debug(
-                        `streamingWorkflow.generateResponseStream cancelled: ${reason}`,
-                    )
+                    logger.debug(`streamingWorkflow.generateResponseStream cancelled: ${reason}`)
                     streamCancelled = true
                 },
                 async start(controller) {
-                    cfg.logger.debug('streamingWorkflow.run: starting main stream')
+                    logger.debug('streamingWorkflow.run: starting main stream')
                     for await (const chunk of mainStepStream) {
                         if (measureTtft) {
-                            cfg.logger.debug(
+                            logger.debug(
                                 `[MARK] TTFT: ${(performance.now() - startTime).toFixed(2)}ms`,
                             )
                             measureTtft = false
@@ -143,7 +136,7 @@ export function createAIStreamEngine(cfg: StreamingEngineConfig): AIStreamEngine
                                 filteredTokens,
                             )
                             if (filterResult.action === 'RELEASE_TOKENS') {
-                                cfg.logger.debug(
+                                logger.debug(
                                     'streamingWorkflow.run: programmatic filter releasing tokens: ',
                                     JSON.stringify(filterResult.tokens),
                                 )
@@ -154,7 +147,7 @@ export function createAIStreamEngine(cfg: StreamingEngineConfig): AIStreamEngine
                         } else if (filter?.shouldStartFiltering(transcript, delta)) {
                             filteredTokens = [delta]
                             currentFilter = filter
-                            cfg.logger.debug(
+                            logger.debug(
                                 'streamingWorkflow.run: programmatic filter is applied on token: ',
                                 delta,
                             )
@@ -183,7 +176,7 @@ export function createAIStreamEngine(cfg: StreamingEngineConfig): AIStreamEngine
                         }
                     }
 
-                    cfg.logger.debug('streamingWorkflow.run: markMainResponseFinished', {
+                    logger.debug('streamingWorkflow.run: markMainResponseFinished', {
                         elapsedMs: (performance.now() - startTime).toFixed(2),
                     })
                     transcript.markMainResponseFinished()
@@ -210,7 +203,7 @@ export function createAIStreamEngine(cfg: StreamingEngineConfig): AIStreamEngine
                             })
                             await cfg.conversationalTracer.flush()
                         } catch (err) {
-                            cfg.logger.error('Failed to write conversational trace', { err })
+                            logger.error('Failed to write conversational trace', { err })
                         }
                     }
                     if (!streamCancelled) {
@@ -222,10 +215,10 @@ export function createAIStreamEngine(cfg: StreamingEngineConfig): AIStreamEngine
         }
 
         async function renderPrompt(prompt: string | PromptFile, context?: CTX) {
-            cfg.logger.debug('Streaming AI, CONTEXT:', context)
+            logger.debug('Streaming AI, CONTEXT:', context)
             const template = typeof prompt === 'string' ? prompt : await prompt.content()
             if (context) {
-                cfg.logger.debug('Loaded context: ', context)
+                logger.debug('Loaded context: ', context)
                 nunjucks.configure({
                     autoescape: true,
                     trimBlocks: true,
