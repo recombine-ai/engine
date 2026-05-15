@@ -184,28 +184,6 @@ export function createAIStreamEngine(cfg: StreamingEngineConfig): AIStreamEngine
                     // Add step trace and flush to telescope
                     cfg.stepTracer?.addStepTrace(mainStepTrace)
                     await cfg.stepTracer?.flush()
-                    if (cfg.conversationalTracer) {
-                        try {
-                            const ctxWithState = ctx as any
-                            const rawConversationId =
-                                ctxWithState?.state?.callId ?? ctxWithState?.callId
-                            const conversationId =
-                                typeof rawConversationId === 'string' && rawConversationId !== ''
-                                    ? rawConversationId
-                                    : undefined
-                            cfg.conversationalTracer.addConversationalTrace({
-                                conversationId,
-                                eventName: 'finished-main-streaming-step',
-                                role: 'agent',
-                                medium: 'phone',
-                                content: transcript.currentResponse,
-                                createdAt: Date.now(),
-                            })
-                            await cfg.conversationalTracer.flush()
-                        } catch (err) {
-                            logger.error('Failed to write conversational trace', { err })
-                        }
-                    }
                     if (!streamCancelled) {
                         controller.close()
                     }

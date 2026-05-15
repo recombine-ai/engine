@@ -25,8 +25,6 @@ export interface StreamingEngineConfig {
     stepRegistry?: StepRegistry
     /** traces received prompt, rendered prompt, context and other useful info about LLM execution */
     stepTracer?: StepTracer
-    /** same as stepTracer but for “something happened in the conversation” events  */
-    conversationalTracer?: ConversationalTracer
 }
 
 export interface WorkflowConfig<CTX> {
