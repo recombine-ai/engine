@@ -1,6 +1,4 @@
-import { Message } from '../ai'
-import { Logger, Scheduler } from '../interfaces'
-import { SendAction } from './action'
+import { Logger, Message, Scheduler } from '../interfaces'
 import { Context } from './context'
 import { StepRegistry } from './step-registry'
 import { StepTracer } from './step-tracer'
@@ -47,7 +45,6 @@ export interface TestAgentFactoryProps<CTX extends DefaultContext = DefaultConte
     scheduler: Scheduler
     getMessages: () => Message[]
     sendMessage: (message: string | Message) => Promise<void>
-    sendAction: SendAction
     ctx: Context<CTX>
 }
 

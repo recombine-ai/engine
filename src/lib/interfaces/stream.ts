@@ -1,13 +1,11 @@
-import { Message } from '../ai'
-import { Logger } from '../interfaces'
-import { ConversationalTracer, StepRegistry, StepTracer } from '../bosun'
+import { Message } from './conversation'
+import { StepRegistry, StepTracer } from '../bosun'
 import { PromptFile } from '../prompt-fs'
+import { Logger } from './other'
 
-export interface AIStreamEngine {
+export interface AIStreamEngine<CTX extends {}> {
     /** creates streaming workflow */
-    createWorkflow: <CTX extends {}>(
-        config: WorkflowConfig<CTX>,
-    ) => {
+    createWorkflow: (config: StreamWorkflowConfig<CTX>) => {
         /**
          * Runs streaming workflow (starts stream)
          * @param messages
@@ -27,7 +25,7 @@ export interface StreamingEngineConfig {
     stepTracer?: StepTracer
 }
 
-export interface WorkflowConfig<CTX> {
+export interface StreamWorkflowConfig<CTX> {
     /** name of the workflow and its only step to appear in Bosun and in traces */
     name: string
     /** system prompt */

@@ -1,4 +1,4 @@
-import type { LlmAdapter } from '../ai'
+import { LlmAdapter } from '../interfaces'
 
 export function createMockAdapter(): LlmAdapter {
     return {

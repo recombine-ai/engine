@@ -1,4 +1,4 @@
-import { ProgrammaticFilter } from './interfaces'
+import { ProgrammaticFilter } from '../interfaces/stream'
 
 /**
  * filter out 'Agent:' at the beginning of the llm response

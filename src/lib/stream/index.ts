@@ -1,4 +1,4 @@
-export { createAIStreamEngine } from './ai'
+export { createAIStreamEngine } from './engine'
 
 export {
     AIStreamEngine,
@@ -7,7 +7,7 @@ export {
     ResponseChunk,
     Transcript,
     StreamingEngineConfig,
-    WorkflowConfig as StreamingWorkflowConfig,
-} from './interfaces'
+    StreamWorkflowConfig as StreamingWorkflowConfig,
+} from '../interfaces/stream'
 
 export { getAzureClient, getOpenAiClient } from './get-client'

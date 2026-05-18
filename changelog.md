@@ -4,6 +4,7 @@
 
 - **Breaking:** `model` field on `LLMStep` is now required and must be an `LlmAdapter` (string model names removed)
 - **Breaking:** OpenAI adapter no longer embeds API-key management; pass a pre-configured `OpenAI` client instead
+- **Breaking:** `AIEngine` now requires `CTX` parameter
 - **Breaking:** Removed deprecated `Conversation.setUserName()` / `setAgentName()` (defaults: "User" / "Agent")
 - **Breaking:** Removed deprecated `Workflow.addStep()` – pass all steps via `WorkflowConfig#steps`
 - **Breaking:** Removed deprecated `EngineConfig.tokenStorage`, `sendAction`, and `tracer` (use `stepRegistry`)

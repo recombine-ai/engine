@@ -1,7 +1,6 @@
 // cspell:words TTFT lstrip
 import nunjucks from 'nunjucks'
 
-import { Message } from '../ai'
 import { createStubStepTracer, StepTrace } from '../bosun'
 import { PromptFile } from '../prompt-fs'
 import { defaultFilter } from './filter'
@@ -11,19 +10,21 @@ import {
     ResponseChunk,
     StreamingEngineConfig,
     Transcript,
-    WorkflowConfig,
-} from './interfaces'
+    StreamWorkflowConfig,
+} from '../interfaces/stream'
 import { stdPrompt } from '../bosun/step-registry'
-import { Logger } from '../interfaces'
+import { Logger, Message } from '../interfaces'
 
-export function createAIStreamEngine(cfg: StreamingEngineConfig): AIStreamEngine {
+export function createAIStreamEngine<CTX extends {}>(
+    cfg: StreamingEngineConfig,
+): AIStreamEngine<CTX> {
     function createWorkflow<CTX>({
         name,
         prompt,
         model,
         filter = defaultFilter,
         onError,
-    }: WorkflowConfig<CTX>) {
+    }: StreamWorkflowConfig<CTX>) {
         const logger = cfg.logger || console
         logger.debug('streamAiEngine.createWorkflow')
         const stepTracer = cfg.stepTracer || createStubStepTracer(logger)

@@ -1,7 +1,7 @@
 import { OpenAI } from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
-import type { LlmAdapter } from '../ai'
 import { type ZodType, toJSONSchema } from 'zod'
+import { LlmAdapter } from '../interfaces'
 
 type OpenaiOptionsToSend = Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'>
 export type OpenAIChatOptions = Omit<OpenaiOptionsToSend, 'response_format'>

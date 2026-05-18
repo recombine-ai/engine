@@ -1,7 +1,7 @@
 import { OpenAI } from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 
-import { LlmStreamAdapter } from '../stream/interfaces'
+import { LlmStreamAdapter } from '../interfaces/stream'
 
 export type OpenAIChatOptions = Omit<
     ChatCompletionCreateParamsBase,
