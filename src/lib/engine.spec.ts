@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, Mock } from 'vitest'
-import { createAIEngine } from './ai'
+import { createAIEngine } from './engine'
 import { PromptFile } from './prompt-fs'
 import { z } from 'zod'
 import { createOpenAIAdapter } from './llm-adapters/openai'
