@@ -3,17 +3,17 @@ import nunjucks from 'nunjucks'
 
 import { createStubStepTracer, StepTrace } from '../bosun'
 import { PromptFile } from '../prompt-fs'
-import { defaultFilter } from './filter'
 import {
+    Logger,
+    Message,
     AIStreamEngine,
-    ProgrammaticFilter,
     ResponseChunk,
     StreamingEngineConfig,
     Transcript,
     StreamWorkflowConfig,
-} from '../interfaces/stream'
+} from '../interfaces'
 import { stdPrompt } from '../bosun/step-registry'
-import { Logger, Message } from '../interfaces'
+import { agentFilter, composeTokenTransformers } from './token-transformers'
 
 export function createAIStreamEngine<CTX extends {}>(
     cfg: StreamingEngineConfig,
@@ -22,7 +22,7 @@ export function createAIStreamEngine<CTX extends {}>(
         name,
         prompt,
         model,
-        filter = defaultFilter,
+        tokenTransformers = [agentFilter],
         onError,
     }: StreamWorkflowConfig<CTX>) {
         const logger = cfg.logger || console
@@ -35,54 +35,18 @@ export function createAIStreamEngine<CTX extends {}>(
         })
 
         async function run(messages: Message[], ctx: CTX) {
-            let streamCancelled = false
-            return new ReadableStream<ResponseChunk>({
-                cancel: (reason) => {
-                    logger.debug(`streamingWorkflow.run cancelled: ${reason}`)
-                    streamCancelled = true
-                },
-                start: async (controller) => {
-                    try {
-                        const stream = await generateResponseStream(messages, ctx)
-                        for await (const chunk of stream) {
-                            if (streamCancelled) return
-                            controller.enqueue(chunk)
-                        }
-                        if (streamCancelled) return
-                        controller.close()
-                    } catch (e) {
-                        if (streamCancelled) {
-                            logger.debug(
-                                'streamingWorkflow.run will not propagate error due to stream cancellation',
-                                e,
-                            )
-                            return
-                        }
-                        controller.error(e)
-                        await onError(e as Error | string, ctx)
-                    }
-                },
-            })
-        }
-
-        async function generateResponseStream(
-            messages: Message[],
-            ctx: CTX,
-        ): Promise<ReadableStream<ResponseChunk>> {
             const runId = crypto.randomUUID()
             logger.debug(`streamingWorkflow.run runId: ${runId}`)
             const startTime = performance.now()
             const transcript = createTranscript(logger, messages)
-
-            let currentFilter: ProgrammaticFilter | null = null
-            let filteredTokens: string[] = []
+            const initiatedTransformers = tokenTransformers.map((init) => init())
 
             // Create step trace for telescope
             const mainStepTrace: StepTrace = {
                 workflowId: name,
                 workflowRunId: runId,
                 name: name,
-                model: String(model.getOptions()),
+                model: JSON.stringify(model.getOptions()),
                 createdAt: Date.now(),
                 response: '',
             }
@@ -98,97 +62,78 @@ export function createAIStreamEngine<CTX extends {}>(
                 mainStepStream = await model.generateStream(renderedPrompt, stringifiedConversation)
             } catch (error) {
                 logger.error('AI Engine Stream: LLM error', { error })
-                if (mainStepTrace) {
-                    mainStepTrace.error = error instanceof Error ? error : new Error(String(error))
-                    cfg.stepTracer?.addStepTrace(mainStepTrace)
-                    await cfg.stepTracer?.flush()
-                }
-                throw error
+                mainStepTrace.error = error instanceof Error ? error : new Error(String(error))
+                stepTracer.addStepTrace(mainStepTrace)
+                await stepTracer.flush()
+                await onError(error as Error | string, ctx)
+                return new ReadableStream<ResponseChunk>({
+                    start(controller) {
+                        controller.error(error)
+                    },
+                })
             }
-            logger.debug(`[MARK] stream created: ${(performance.now() - startTime).toFixed(2)}ms`)
 
+            return mainStepStream
+                .pipeThrough(metrics(startTime))
+                .pipeThrough(composeTokenTransformers(initiatedTransformers))
+                .pipeThrough(packageAsResponseChunk())
+                .pipeThrough(pushToTranscript(transcript))
+                .pipeThrough(flushTrace(mainStepTrace, transcript))
+        }
+
+        function metrics<T>(startTime: number) {
             let measureTtft = true
-            let streamCancelled = false
-            return new ReadableStream<ResponseChunk>({
-                cancel: (reason) => {
-                    logger.debug(`streamingWorkflow.generateResponseStream cancelled: ${reason}`)
-                    streamCancelled = true
+            return new TransformStream<T, T>({
+                start() {
+                    logger.debug(
+                        `[MARK] LLM stream created: ${(performance.now() - startTime).toFixed(2)}ms`,
+                    )
                 },
-                async start(controller) {
-                    logger.debug('streamingWorkflow.run: starting main stream')
-                    for await (const chunk of mainStepStream) {
-                        if (measureTtft) {
-                            logger.debug(
-                                `[MARK] TTFT: ${(performance.now() - startTime).toFixed(2)}ms`,
-                            )
-                            measureTtft = false
-                        }
-                        const delta = chunk
-                        if (!delta) {
-                            continue
-                        }
 
-                        let tokensToRelease: string[] = []
-
-                        if (currentFilter) {
-                            filteredTokens.push(delta)
-                            const filterResult = currentFilter.onNewToken(
-                                transcript,
-                                filteredTokens,
-                            )
-                            if (filterResult.action === 'RELEASE_TOKENS') {
-                                logger.debug(
-                                    'streamingWorkflow.run: programmatic filter releasing tokens: ',
-                                    JSON.stringify(filterResult.tokens),
-                                )
-                                tokensToRelease = filterResult.tokens
-                                currentFilter = null
-                                filteredTokens = []
-                            }
-                        } else if (filter?.shouldStartFiltering(transcript, delta)) {
-                            filteredTokens = [delta]
-                            currentFilter = filter
-                            logger.debug(
-                                'streamingWorkflow.run: programmatic filter is applied on token: ',
-                                delta,
-                            )
-                        } else {
-                            tokensToRelease = [delta]
-                        }
-                        releaseMainStreamTokens(tokensToRelease)
+                transform(chunk, controller) {
+                    if (measureTtft) {
+                        logger.debug(`[MARK] TTFT: ${(performance.now() - startTime).toFixed(2)}ms`)
+                        measureTtft = false
                     }
+                    controller.enqueue(chunk)
+                },
 
-                    if (currentFilter) {
-                        // stream has ended, but the filter still has some tokens to release
-                        releaseMainStreamTokens(
-                            currentFilter.onStreamEnd(transcript, filteredTokens).tokensToRelease,
-                        )
-                        currentFilter = null
-                        filteredTokens = []
-                    }
+                flush() {
+                    logger.debug(
+                        `[MARK] LLM stream finished: ${(performance.now() - startTime).toFixed(2)}`,
+                    )
+                },
+            })
+        }
 
-                    function releaseMainStreamTokens(tokens: string[]) {
-                        for (const token of tokens) {
-                            if (streamCancelled) {
-                                break
-                            }
-                            transcript.responseChunks.push({ role: 'agent', delta: token })
-                            controller.enqueue({ role: 'agent', delta: token })
-                        }
-                    }
+        function packageAsResponseChunk() {
+            return new TransformStream<string, ResponseChunk>({
+                transform(chunk, controller) {
+                    controller.enqueue({ role: 'agent', delta: chunk })
+                },
+            })
+        }
 
-                    logger.debug('streamingWorkflow.run: markMainResponseFinished', {
-                        elapsedMs: (performance.now() - startTime).toFixed(2),
-                    })
-                    transcript.markMainResponseFinished()
+        function pushToTranscript(transcript: Transcript) {
+            return new TransformStream<ResponseChunk, ResponseChunk>({
+                transform(chunk, controller) {
+                    transcript.responseChunks.push(chunk)
+                    controller.enqueue(chunk)
+                },
+            })
+        }
 
+        function flushTrace<T>(mainStepTrace: StepTrace, transcript: Transcript) {
+            return new TransformStream<T, T>({
+                async flush() {
                     // Add step trace and flush to telescope
-                    cfg.stepTracer?.addStepTrace(mainStepTrace)
-                    await cfg.stepTracer?.flush()
-                    if (!streamCancelled) {
-                        controller.close()
+                    mainStepTrace.response = transcript.currentResponse
+                    stepTracer.addStepTrace(mainStepTrace)
+                    try {
+                        await stepTracer.flush()
+                    } catch (e) {
+                        logger.error('stepTracer.flush failed', { error: e })
                     }
-                    await stepTracer.flush()
                 },
             })
         }
@@ -219,7 +164,6 @@ export function createAIStreamEngine<CTX extends {}>(
 }
 
 function createTranscript(logger: Logger, initialMessages: Message[]): Transcript {
-    let finished = false
     const messages = [...initialMessages]
     const directivesFormatter = (msg: Message) => `${msg.sender}: ${msg.text}`
     const currentResponseFormatter = (partial: string) => `Current response: ${partial}`
@@ -240,17 +184,8 @@ function createTranscript(logger: Logger, initialMessages: Message[]): Transcrip
                 .join('')
         },
 
-        get mainResponseFinished() {
-            return finished
-        },
-
         get messages() {
             return initialMessages
-        },
-
-        markMainResponseFinished() {
-            logger.debug('Conversation, markMainResponseFinished')
-            finished = true
         },
 
         toString(ignoreDirectives = false) {

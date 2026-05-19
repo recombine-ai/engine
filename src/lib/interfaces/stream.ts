@@ -33,16 +33,14 @@ export interface StreamWorkflowConfig<CTX> {
     /** LLM model with streaming support */
     model: LlmStreamAdapter
     onError: (error: Error | string, ctx: CTX) => Promise<void>
-    /** filter out some tokens on the fly */
-    filter?: ProgrammaticFilter // only one filter supported for now, not sure how to implement parallel filters yet
+    /** transform LLM-tokens on the fly */
+    tokenTransformers?: (() => TransformStream<string, string>)[]
 }
 
 export interface Transcript {
     responseChunks: ResponseChunk[]
     messages: Message[]
     readonly currentResponse: string
-    readonly mainResponseFinished: boolean
-    markMainResponseFinished(): void
     toString(ignoreDirectives?: boolean): string
     getConversation(): Message[]
 }
@@ -56,15 +54,6 @@ export interface LlmStreamAdapter {
     generateStream: (systemPrompt: string, messages: string) => Promise<ReadableStream<string>>
     /** Returns adapter's configuration/options for tracing */
     getOptions: () => unknown
-}
-
-export interface ProgrammaticFilter {
-    shouldStartFiltering: (state: Transcript, newToken: string) => boolean
-    onNewToken: (
-        state: Transcript,
-        filteredTokens: string[],
-    ) => { action: 'CONTINUE_FILTERING' } | { action: 'RELEASE_TOKENS'; tokens: string[] }
-    onStreamEnd: (state: Transcript, filteredTokens: string[]) => { tokensToRelease: string[] }
 }
 
 export interface ResponseChunk {

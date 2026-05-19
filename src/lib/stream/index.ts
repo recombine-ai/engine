@@ -2,7 +2,6 @@ export { createAIStreamEngine } from './engine'
 
 export {
     AIStreamEngine,
-    ProgrammaticFilter,
     LlmStreamAdapter,
     ResponseChunk,
     Transcript,
