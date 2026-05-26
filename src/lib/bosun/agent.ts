@@ -26,6 +26,9 @@ import { ConversationalTracer } from './conversational-tracer'
  * ```
  */
 type DefaultContext = Record<string, any>
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export interface TestAgentFactoryProps<CTX extends DefaultContext = DefaultContext> {
     stepRegistry: StepRegistry
     /**
@@ -48,6 +51,9 @@ export interface TestAgentFactoryProps<CTX extends DefaultContext = DefaultConte
     ctx: Context<CTX>
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export interface TestTextAgent {
     start: () => Promise<unknown>
     reactOnMessage: () => Promise<unknown>
@@ -55,6 +61,9 @@ export interface TestTextAgent {
     isAssigned: () => Promise<boolean>
     onFatalError: (error: Error) => Promise<unknown>
 }
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export interface TestVoiceAgent {
     streamResponse: () => Promise<unknown>
     onCallEnd: () => Promise<unknown>
@@ -64,12 +73,21 @@ export interface TestVoiceAgent {
     resetContext: () => Promise<unknown>
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export type TestAgent = TestTextAgent | TestVoiceAgent
 
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export type TestAgentFactory<T extends DefaultContext = DefaultContext> = (
     props: TestAgentFactoryProps<T>,
 ) => Promise<TestAgent>
 
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export function createTestAgentFactory<T extends DefaultContext>(creator: TestAgentFactory<T>) {
     return creator
 }

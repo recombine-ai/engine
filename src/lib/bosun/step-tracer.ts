@@ -2,6 +2,9 @@ import { type ZodType, toJSONSchema } from 'zod'
 import { PromptFile } from '../prompt-fs'
 import { Logger } from '../interfaces'
 
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export type LlmUsage = {
     promptTokens?: number
     completionTokens?: number
@@ -9,6 +12,9 @@ export type LlmUsage = {
     cachedPromptTokens?: number
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export type StepTrace = {
     /** Unique ID for the trace */
     traceId?: string
@@ -42,6 +48,9 @@ export type StepTrace = {
     error?: Error
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export interface StepTracer {
     /**
      * Add a step trace
@@ -55,6 +64,9 @@ export interface StepTracer {
     flush(): Promise<void>
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export function createStubStepTracer(logger: Logger) {
     return {
         addStepTrace(trace: StepTrace) {

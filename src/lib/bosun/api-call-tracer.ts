@@ -7,6 +7,9 @@ import { Logger } from '../interfaces'
  * your domain "call"/"conversation" identifier. To get a per-call UI timeline, scope your tracer in the app
  * layer by injecting `conversationId` onto every `ApiCallTrace` before passing it to the SDK.
  */
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export type ApiCallTrace = {
     /** Unique ID for the trace */
     traceId?: string
@@ -40,11 +43,17 @@ export type ApiCallTrace = {
     createdAt: number
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export interface ApiCallTracer {
     addApiCallTrace(trace: ApiCallTrace): void
     flush(): Promise<void>
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export function createStubApiCallTracer(logger: Logger) {
     return {
         addApiCallTrace(trace: ApiCallTrace) {

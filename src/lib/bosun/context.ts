@@ -61,6 +61,9 @@ class Context<T extends Ctx> {
     }
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export function createContext<T extends Ctx>(context: T) {
     return new Context(context)
 }
@@ -69,4 +72,7 @@ type Public<T> = { [P in keyof T]: T[P] }
 
 type PublicContext<T extends Ctx> = Public<Context<T>>
 
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export type { PublicContext as Context }

@@ -5,6 +5,9 @@ import { Logger } from '../interfaces'
  * message received/sent, streaming finished, handler invoked) that UIs may want to show on the same
  * per-conversation timeline.
  */
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export type ConversationalTrace = {
     /** Unique ID for the trace */
     traceId?: string
@@ -39,11 +42,17 @@ export type ConversationalTrace = {
     error?: unknown
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export interface ConversationalTracer {
     addConversationalTrace(trace: ConversationalTrace): void
     flush(): Promise<void>
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export function createStubConversationalTracer(logger: Logger) {
     return {
         addConversationalTrace(trace: ConversationalTrace) {

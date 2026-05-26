@@ -6,6 +6,9 @@ type InstanceType<T extends ConstructorType<any>> = T extends new (...args: any[
     ? R
     : never
 
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export function createMock<T extends ConstructorType<any>>(
     logger: Logger,
     constructor: T,

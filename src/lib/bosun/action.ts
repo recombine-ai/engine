@@ -1,5 +1,8 @@
 // TODO drop this!
 
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export interface Action {
     id: string
     type: string
@@ -7,8 +10,14 @@ export interface Action {
     message: string
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export type SendAction = (action: Action) => Promise<void>
 
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export function makeActionWrapper(sendAction: SendAction) {
     return async function wrapAction(
         message: string,
@@ -32,6 +41,9 @@ export function makeActionWrapper(sendAction: SendAction) {
     }
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export function makeAction(sendAction: SendAction | undefined, type: string, message: string) {
     if (!sendAction) {
         // noop

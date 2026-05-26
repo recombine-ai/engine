@@ -2,11 +2,17 @@ import { type ZodType } from 'zod'
 import { PromptFile } from '../prompt-fs'
 import { Logger } from '../interfaces'
 
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export interface PromptString {
     type: 'string'
     content: () => Promise<string>
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export interface StepDef {
     name: string
     type: 'streaming-response' | 'streaming-detect' | 'text'
@@ -14,12 +20,18 @@ export interface StepDef {
     schema?: ZodType
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export interface StepRegistry {
     addStep(def: StepDef): void
 }
 
 /**
  * a stub registry, that just prints step in logs
+ */
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
  */
 export function createStubRegistry(logger: Logger): StepRegistry {
     return {
@@ -29,6 +41,9 @@ export function createStubRegistry(logger: Logger): StepRegistry {
     } as StepRegistry
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
+ */
 export function stdPrompt(prompt: PromptFile | string) {
     if (typeof prompt === 'string') {
         return {
