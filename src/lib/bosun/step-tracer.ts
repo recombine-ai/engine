@@ -1,5 +1,4 @@
 import { type ZodType, toJSONSchema } from 'zod'
-import { PromptFile } from '../prompt-fs'
 import { Logger } from '../interfaces'
 
 /**
@@ -32,7 +31,7 @@ export type StepTrace = {
 
     renderedPrompt?: string
     receivedContext?: Record<string, unknown> | unknown
-    receivedPrompt?: string | PromptFile | File
+    receivedPrompt?: string
 
     stringifiedConversation?: string
     schema?: ZodType
