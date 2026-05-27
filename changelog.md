@@ -13,6 +13,7 @@
 - Added `createOpenAIStreamAdapter` to `llm-adapters`
 - Added `createMockAdapter` to `llm-adapters` for testing without OpenAI keys
 - Added streaming engine (`createAIStreamEngine`) with filter support
+- Deprecated everything related to Bosun and Telescope in favor of `@recombine/bosun-lib` and `@recombine-ai/telescope`
 
 ### 0.11.3 → 0.11.4 (unstable)
 
