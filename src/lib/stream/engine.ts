@@ -12,7 +12,7 @@ import {
     Transcript,
     StreamWorkflowConfig,
 } from '../interfaces'
-import { stdPrompt } from '../bosun/step-registry'
+import { stdPrompt } from '../step-registry'
 import { agentFilter, composeTokenTransformers } from './token-transformers'
 
 export function createAIStreamEngine<CTX extends {}>(

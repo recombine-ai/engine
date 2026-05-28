@@ -16,7 +16,7 @@ import {
     WorkflowStep,
 } from './interfaces'
 import { createStubStepTracer, StepTrace } from './bosun/step-tracer'
-import { createStubRegistry, stdPrompt } from './bosun/step-registry'
+import { createStubRegistry, stdPrompt } from './step-registry'
 import { AIEngine, EngineConfig } from './interfaces/engine'
 import { LlmAdapter } from './interfaces/adapter'
 

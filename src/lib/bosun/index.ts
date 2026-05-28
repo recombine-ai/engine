@@ -17,7 +17,7 @@ export * from './mock'
 /**
  * @deprecated Use the analog from @recombine-ai/bosun-lib instead.
  */
-export { PromptString, StepDef, StepRegistry } from './step-registry'
+export { PromptString, StepDef, StepRegistry } from '../step-registry'
 /**
  * @deprecated Use the analog from @recombine-ai/telescope instead.
  */

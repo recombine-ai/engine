@@ -1,6 +1,6 @@
 import { Logger, Message, Scheduler } from '../interfaces'
 import { Context } from './context'
-import { StepRegistry } from './step-registry'
+import { StepRegistry } from '../step-registry'
 import { StepTracer } from './step-tracer'
 import { ApiCallTracer } from './api-call-tracer'
 import { ConversationalTracer } from './conversational-tracer'
