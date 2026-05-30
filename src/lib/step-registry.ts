@@ -1,6 +1,6 @@
-import { ZodSchema } from 'zod'
-import { PromptFile } from '../prompt-fs'
-import { Logger } from '../interfaces'
+import { type ZodType } from 'zod'
+import { PromptFile } from './prompt-fs'
+import { Logger } from './interfaces'
 
 export interface PromptString {
     type: 'string'
@@ -11,32 +11,17 @@ export interface StepDef {
     name: string
     type: 'streaming-response' | 'streaming-detect' | 'text'
     prompt: PromptFile | PromptString
-    schema?: ZodSchema
+    schema?: ZodType
 }
-
-/**
- * @deprecated use `StepDef` instead
- */
-export type StepTraceDef = StepDef
-
-/**
- * @deprecated use `StepRegistry` instead
- */
-export type Tracer = StepRegistry
 
 export interface StepRegistry {
     addStep(def: StepDef): void
 }
 
 /**
- * @deprecated use `createStubRegistry` instead
- */
-export const createConsoleTracer = createStubRegistry
-
-/**
  * a stub registry, that just prints step in logs
  */
-export function createStubRegistry(logger: Logger): Tracer {
+export function createStubRegistry(logger: Logger): StepRegistry {
     return {
         addStep(def) {
             logger.debug('Step registry, step added:', def)

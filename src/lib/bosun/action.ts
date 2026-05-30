@@ -1,3 +1,8 @@
+// TODO drop this!
+
+/**
+ * @deprecated unused
+ */
 export interface Action {
     id: string
     type: string
@@ -5,8 +10,14 @@ export interface Action {
     message: string
 }
 
+/**
+ * @deprecated unused
+ */
 export type SendAction = (action: Action) => Promise<void>
 
+/**
+ * @deprecated unused
+ */
 export function makeActionWrapper(sendAction: SendAction) {
     return async function wrapAction(
         message: string,
@@ -30,6 +41,9 @@ export function makeActionWrapper(sendAction: SendAction) {
     }
 }
 
+/**
+ * @deprecated unused
+ */
 export function makeAction(sendAction: SendAction | undefined, type: string, message: string) {
     if (!sendAction) {
         // noop

@@ -1,7 +1,12 @@
 import { Logger } from '../interfaces'
 
 /**
- * Generic conversational event tracing. Represents “something happened in the conversation” (e.g. message received/sent, streaming finished, handler invoked) that UIs may want to show on the same per-conversation timeline.
+ * Generic conversational event tracing. Represents “something happened in the conversation” (e.g.
+ * message received/sent, streaming finished, handler invoked) that UIs may want to show on the same
+ * per-conversation timeline.
+ */
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
  */
 export type ConversationalTrace = {
     /** Unique ID for the trace */
@@ -37,11 +42,17 @@ export type ConversationalTrace = {
     error?: unknown
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export interface ConversationalTracer {
     addConversationalTrace(trace: ConversationalTrace): void
     flush(): Promise<void>
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export function createStubConversationalTracer(logger: Logger) {
     return {
         addConversationalTrace(trace: ConversationalTrace) {

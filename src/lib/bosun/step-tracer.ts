@@ -1,8 +1,9 @@
-import { ZodSchema } from 'zod'
-import { PromptFile } from '../prompt-fs'
+import { type ZodType, toJSONSchema } from 'zod'
 import { Logger } from '../interfaces'
-import zodToJsonSchema from 'zod-to-json-schema'
 
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export type LlmUsage = {
     promptTokens?: number
     completionTokens?: number
@@ -10,6 +11,9 @@ export type LlmUsage = {
     cachedPromptTokens?: number
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export type StepTrace = {
     /** Unique ID for the trace */
     traceId?: string
@@ -27,10 +31,10 @@ export type StepTrace = {
 
     renderedPrompt?: string
     receivedContext?: Record<string, unknown> | unknown
-    receivedPrompt?: string | PromptFile | File
+    receivedPrompt?: string
 
     stringifiedConversation?: string
-    schema?: ZodSchema
+    schema?: ZodType
     model?: string
     llmUsage?: LlmUsage
 
@@ -43,6 +47,9 @@ export type StepTrace = {
     error?: Error
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export interface StepTracer {
     /**
      * Add a step trace
@@ -56,6 +63,9 @@ export interface StepTracer {
     flush(): Promise<void>
 }
 
+/**
+ * @deprecated Use the analog from @recombine-ai/telescope instead.
+ */
 export function createStubStepTracer(logger: Logger) {
     return {
         addStepTrace(trace: StepTrace) {
@@ -64,7 +74,7 @@ export function createStubStepTracer(logger: Logger) {
                 logger.log(`StepTrace, model: ${trace.model}`)
             }
             if (trace.schema) {
-                logger.log('StepTrace, schema:', zodToJsonSchema(trace.schema))
+                logger.log('StepTrace, schema:', toJSONSchema(trace.schema))
             }
             if (trace.receivedContext) {
                 logger.log('StepTrace, context:', trace.receivedContext)

@@ -33,8 +33,7 @@ jobs:
               run: npm install -g npm@latest
 
             - name: 'Install dependencies'
-              # TODO rm --legacy-peer-deps as soon as zod stuff fixed
-              run: npm ci --legacy-peer-deps
+              run: npm ci
 
             - name: 'Build'
               run: npm run build
