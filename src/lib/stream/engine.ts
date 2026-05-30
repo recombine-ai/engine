@@ -40,6 +40,15 @@ export function createAIStreamEngine<CTX extends {}>(
             const startTime = performance.now()
             const transcript = createTranscript(logger, messages)
             const initiatedTransformers = tokenTransformers.map((init) => init())
+            const template = typeof prompt === 'string' ? prompt : await prompt.content()
+            nunjucks.configure({
+                autoescape: true,
+                trimBlocks: true,
+                lstripBlocks: true,
+            })
+            const renderedPrompt = nunjucks.renderString(template, ctx || {})
+
+            const stringifiedConversation = transcript.toString()
 
             // Create step trace for telescope
             const mainStepTrace: StepTrace = {
@@ -49,13 +58,11 @@ export function createAIStreamEngine<CTX extends {}>(
                 model: JSON.stringify(model.getOptions()),
                 createdAt: Date.now(),
                 response: '',
+                receivedContext: ctx,
+                receivedPrompt: template,
+                renderedPrompt: renderedPrompt,
+                stringifiedConversation: stringifiedConversation,
             }
-
-            const renderedPrompt = await renderPrompt(prompt, ctx)
-            const stringifiedConversation = transcript.toString()
-
-            mainStepTrace.renderedPrompt = renderedPrompt
-            mainStepTrace.stringifiedConversation = stringifiedConversation
 
             let mainStepStream: ReadableStream<string>
             try {
@@ -136,21 +143,6 @@ export function createAIStreamEngine<CTX extends {}>(
                     }
                 },
             })
-        }
-
-        async function renderPrompt(prompt: string | PromptFile, context?: CTX) {
-            logger.debug('Streaming AI, CONTEXT:', context)
-            const template = typeof prompt === 'string' ? prompt : await prompt.content()
-            if (context) {
-                logger.debug('Loaded context: ', context)
-                nunjucks.configure({
-                    autoescape: true,
-                    trimBlocks: true,
-                    lstripBlocks: true,
-                })
-                return nunjucks.renderString(template, context)
-            }
-            return template
         }
 
         return {
