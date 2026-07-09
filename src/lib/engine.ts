@@ -20,6 +20,8 @@ import { createStubRegistry, stdPrompt } from './step-registry'
 import { AIEngine, EngineConfig } from './interfaces/engine'
 import { LlmAdapter } from './interfaces/adapter'
 
+const STRUCTURED_RESPONSE_MAX_ATTEMPTS = 3
+
 /**
  * Creates an AI Engine with the given configuration.
  *
@@ -146,40 +148,15 @@ export function createAIEngine<CTX extends object>(cfg: EngineConfig = {}): AIEn
                 stepTrace.stringifiedConversation = stringifiedMessages
 
                 if ('schema' in step) {
-                    const stringResponse = await runLLM(
+                    const { parsedResponse, rawResponse } = await runStructuredStepWithRetries(
                         step.model,
                         prompt,
                         stringifiedMessages,
+                        step.name,
                         step.schema,
                     )
-                    stepTrace.response = stringResponse
-
-                    let parsedJsonResponse: unknown = undefined
-                    try {
-                        parsedJsonResponse = JSON.parse(stringResponse)
-                        response = step.schema.parse(parsedJsonResponse)
-                    } catch (err) {
-                        if (err instanceof SyntaxError) {
-                            logger.error(
-                                `AI-generated response is not valid JSON in step ${step.name}`,
-                                {
-                                    response: stringResponse,
-                                    schema: Zod.toJSONSchema(step.schema),
-                                },
-                            )
-                            throw new Error(`Response is not valid JSON for step ${step.name}`)
-                        } else {
-                            logger.error(
-                                `AI-generated response in step ${step.name} violates schema`,
-                                {
-                                    response: stringResponse,
-                                    schema: Zod.toJSONSchema(step.schema),
-                                    errors: step.schema.safeParse(parsedJsonResponse).error,
-                                },
-                            )
-                            throw new Error(`Response validation failed for step ${step.name}`)
-                        }
-                    }
+                    response = parsedResponse as any
+                    stepTrace.response = rawResponse
                 } else {
                     response = await runLLM(step.model, prompt, stringifiedMessages, undefined)
                     stepTrace.response = response
@@ -258,6 +235,66 @@ export function createAIEngine<CTX extends object>(cfg: EngineConfig = {}): AIEn
             lstripBlocks: true,
         })
         return nunjucks.renderString(prompt, context ?? {})
+    }
+
+    async function runStructuredStepWithRetries(
+        model: LlmAdapter,
+        prompt: string,
+        stringifiedMessages: string,
+        stepName: string,
+        schema: Zod.ZodType,
+    ): Promise<{ parsedResponse: unknown; rawResponse: string }> {
+        for (let attempt = 1; attempt <= STRUCTURED_RESPONSE_MAX_ATTEMPTS; attempt++) {
+            const stringResponse = await runLLM(model, prompt, stringifiedMessages, schema)
+
+            let parsedJsonResponse: unknown = undefined
+            try {
+                parsedJsonResponse = JSON.parse(stringResponse)
+            } catch {
+                const hasAttemptsLeft = attempt < STRUCTURED_RESPONSE_MAX_ATTEMPTS
+                if (hasAttemptsLeft) {
+                    logger.debug(
+                        `AI-generated response is not valid JSON in step ${stepName}, retry ${attempt}/${STRUCTURED_RESPONSE_MAX_ATTEMPTS}`,
+                    )
+                    continue
+                }
+
+                logger.error(`AI-generated response is not valid JSON in step ${stepName}`, {
+                    response: stringResponse,
+                    schema: Zod.toJSONSchema(schema),
+                })
+                throw new Error(`Response is not valid JSON for step ${stepName}`)
+            }
+
+            const parsedResponse = schema.safeParse(parsedJsonResponse)
+            if (parsedResponse.success) {
+                return {
+                    parsedResponse: parsedResponse.data,
+                    rawResponse: stringResponse,
+                }
+            }
+
+            const hasAttemptsLeft = attempt < STRUCTURED_RESPONSE_MAX_ATTEMPTS
+            if (hasAttemptsLeft) {
+                logger.debug(
+                    `AI-generated response in step ${stepName} violates schema, retry ${attempt}/${STRUCTURED_RESPONSE_MAX_ATTEMPTS}`,
+                    {
+                        response: stringResponse,
+                        errors: parsedResponse.error,
+                    },
+                )
+                continue
+            }
+
+            logger.error(`AI-generated response in step ${stepName} violates schema`, {
+                response: stringResponse,
+                schema: Zod.toJSONSchema(schema),
+                errors: parsedResponse.error,
+            })
+            throw new Error(`Response validation failed for step ${stepName}`)
+        }
+
+        throw new Error(`Response validation failed for step ${stepName}`)
     }
 
     return {

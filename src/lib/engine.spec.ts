@@ -202,9 +202,11 @@ describe('workflow.run', () => {
             age: z.number(),
         })
 
+        const generateResponse = vi.fn().mockResolvedValue('{"name": "John", age: "30}') // Corrupted JSON with an extra quote
+
         const mockAdapter = {
             getOptions: () => ({}),
-            generateResponse: async () => '{"name": "John", age: "30}', // Corrupted JSON with an extra quote
+            generateResponse,
         }
 
         const smartStep = step({
@@ -224,11 +226,56 @@ describe('workflow.run', () => {
         await wf.run(cnv, emptyContextProvider)
 
         expect(smartStep.execute).not.toHaveBeenCalled()
+        expect(generateResponse).toHaveBeenCalledTimes(3)
         expect(mockOnError).toHaveBeenCalledOnce()
         expect(mockOnError).toHaveBeenCalledWith(
             expect.stringContaining(`Response is not valid JSON for step ${step.name}`),
             expect.anything(),
         )
+    })
+
+    it('retries corrupted JSON and succeeds when a later attempt is valid', async () => {
+        const { ai, step, cnv } = getAi()
+
+        const testSchema = z.object({
+            name: z.string(),
+            age: z.number(),
+        })
+
+        const generateResponse = vi
+            .fn()
+            .mockResolvedValueOnce('{"name": "John", age: "30}')
+            .mockResolvedValueOnce(JSON.stringify({ name: 'John', age: 30 }))
+
+        const mockAdapter = {
+            getOptions: () => ({}),
+            generateResponse,
+        }
+
+        const smartStep = step({
+            name: 'smart-step',
+            schema: testSchema,
+            prompt: 'Get user info',
+            model: mockAdapter,
+            execute: vi.fn(),
+        })
+
+        const mockOnError = vi.fn().mockResolvedValue(undefined)
+        const wf = ai.createWorkflow({
+            steps: [smartStep],
+            onError: mockOnError,
+        })
+
+        await wf.run(cnv, emptyContextProvider)
+
+        expect(generateResponse).toHaveBeenCalledTimes(2)
+        expect(smartStep.execute).toHaveBeenCalledWith(
+            { name: 'John', age: 30 },
+            cnv,
+            {},
+            expect.any(Object),
+        )
+        expect(mockOnError).not.toHaveBeenCalled()
     })
 
     it('executes smart steps with a violated JSON response for the Zod schema', async () => {
@@ -240,10 +287,13 @@ describe('workflow.run', () => {
             isMarried: z.boolean(),
         })
 
+        const generateResponse = vi
+            .fn()
+            .mockResolvedValue(JSON.stringify({ name: 'John', age: 30, isMarried: 'no' }))
+
         const mockAdapter = {
             getOptions: () => ({}),
-            generateResponse: async () =>
-                JSON.stringify({ name: 'John', age: 30, isMarried: 'no' }),
+            generateResponse,
         }
 
         const smartStep = step({
@@ -263,6 +313,7 @@ describe('workflow.run', () => {
         await wf.run(cnv, emptyContextProvider)
 
         expect(smartStep.execute).not.toHaveBeenCalled()
+        expect(generateResponse).toHaveBeenCalledTimes(3)
         expect(mockOnError).toHaveBeenCalledOnce()
         expect(mockOnError).toHaveBeenCalledWith(
             expect.stringContaining(`Response validation failed for step ${step.name}`),
