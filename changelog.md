@@ -1,5 +1,9 @@
 # Changelog
 
+### 1.0.0 → 1.1.0
+
+- Added retries on broken JSON in structured responses.
+
 ### 0.11.4 → 1.0.0
 
 - **Breaking:** `model` field on `LLMStep` is now required and must be an `LlmAdapter` (string model names removed)
