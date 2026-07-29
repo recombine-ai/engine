@@ -18,6 +18,18 @@ import { agentFilter, composeTokenTransformers } from './token-transformers'
 export function createAIStreamEngine<CTX extends {}>(
     cfg: StreamingEngineConfig,
 ): AIStreamEngine<CTX> {
+    // Built once rather than per run: `nunjucks.configure()` replaces the module-level default
+    // environment, so calling it on every run would also discard any environment configured
+    // elsewhere in the process. Without `cfg.nunjucksEnv` the loader searches the working
+    // directory, which is all `{% include %}` has to resolve against.
+    const nunjucksEnv =
+        cfg.nunjucksEnv ??
+        nunjucks.configure({
+            autoescape: false,
+            trimBlocks: true,
+            lstripBlocks: true,
+        })
+
     function createWorkflow<CTX>({
         name,
         prompt,
@@ -41,12 +53,7 @@ export function createAIStreamEngine<CTX extends {}>(
             const transcript = createTranscript(logger, messages)
             const initiatedTransformers = tokenTransformers.map((init) => init())
             const template = typeof prompt === 'string' ? prompt : await prompt.content()
-            nunjucks.configure({
-                autoescape: true,
-                trimBlocks: true,
-                lstripBlocks: true,
-            })
-            const renderedPrompt = nunjucks.renderString(template, ctx || {})
+            const renderedPrompt = nunjucksEnv.renderString(template, ctx || {})
 
             const stringifiedConversation = transcript.toString()
 

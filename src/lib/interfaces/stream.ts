@@ -1,3 +1,4 @@
+import { Environment } from 'nunjucks'
 import { Message } from './conversation'
 import { StepRegistry, StepTracer } from '../bosun'
 import { PromptFile } from '../prompt-fs'
@@ -23,6 +24,8 @@ export interface StreamingEngineConfig {
     stepRegistry?: StepRegistry
     /** traces received prompt, rendered prompt, context and other useful info about LLM execution */
     stepTracer?: StepTracer
+    /** Optional nunjucks Environment to customize prompt rendering.  */
+    nunjucksEnv?: Environment
 }
 
 export interface StreamWorkflowConfig<CTX> {

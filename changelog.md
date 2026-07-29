@@ -1,5 +1,18 @@
 # Changelog
 
+### 1.1.0 → 1.2.0
+
+- Added `StreamingEngineConfig#nunjucksEnv` – Optional nunjucks Environment to customize prompt
+  rendering, mirroring `EngineConfig#nunjucksEnv`. Its loader is what `{% include %}` in a
+  streaming prompt resolves against; without it the search path is the working directory.
+- **Breaking:** streaming prompts now render with `autoescape: false`, matching `createAIEngine`.
+  Context values containing `&`, `<`, `>`, `'` or `"` previously reached the model HTML-escaped
+  (`O'Brien` → `O&#39;Brien`).
+- The streaming environment is built once per engine instead of on every run, so it no longer
+  replaces the module-level default environment mid-process.
+- `npm run build` now clears `build/` first. `.npmignore` publishes that directory as-is, so
+  outputs left behind by earlier versions were shipped alongside the current ones.
+
 ### 1.0.0 → 1.1.0
 
 - Added retries on broken JSON in structured responses.
