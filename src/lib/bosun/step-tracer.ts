@@ -1,67 +1,14 @@
-import { type ZodType, toJSONSchema } from 'zod'
+import { toJSONSchema } from 'zod'
+import type { StepTrace, StepTracer } from '@recombine-ai/telescope'
 import { Logger } from '../interfaces'
 
 /**
+ * These shapes are owned by `@recombine-ai/telescope` and re-exported here so existing imports from
+ * `@recombine-ai/engine` keep resolving.
+ *
  * @deprecated Use the analog from @recombine-ai/telescope instead.
  */
-export type LlmUsage = {
-    promptTokens?: number
-    completionTokens?: number
-    totalTokens?: number
-    cachedPromptTokens?: number
-}
-
-/**
- * @deprecated Use the analog from @recombine-ai/telescope instead.
- */
-export type StepTrace = {
-    /** Unique ID for the trace */
-    traceId?: string
-    conversationId?: string
-
-    /** Optional, to group traces within a broader context */
-    scopeId?: string
-
-    /** Just unique name */
-    workflowId: string
-    /** Unique ID for the workflow run */
-    workflowRunId: string
-
-    name: string
-
-    renderedPrompt?: string
-    receivedContext?: Record<string, unknown> | unknown
-    receivedPrompt?: string
-
-    stringifiedConversation?: string
-    schema?: ZodType
-    model?: string
-    llmUsage?: LlmUsage
-
-    /** Raw response from LLM or function call result */
-    response?: string
-
-    /** Timestamp in milliseconds */
-    createdAt: number
-
-    error?: Error
-}
-
-/**
- * @deprecated Use the analog from @recombine-ai/telescope instead.
- */
-export interface StepTracer {
-    /**
-     * Add a step trace
-     * @param trace The step trace to add
-     */
-    addStepTrace(trace: StepTrace): void
-
-    /**
-     * Flush any buffered traces to storage
-     */
-    flush(): Promise<void>
-}
+export type { LlmUsage, StepTrace, StepTracer } from '@recombine-ai/telescope'
 
 /**
  * @deprecated Use the analog from @recombine-ai/telescope instead.

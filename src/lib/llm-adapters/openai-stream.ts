@@ -2,6 +2,7 @@ import { OpenAI } from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 
 import { LlmStreamAdapter } from '../interfaces/stream'
+import { detectProvider } from './provider'
 
 export type OpenAIChatOptions = Omit<
     ChatCompletionCreateParamsBase,
@@ -14,6 +15,7 @@ export function createOpenAIStreamAdapter(
 ): LlmStreamAdapter {
     return {
         getOptions: () => options,
+        getProviderInfo: () => ({ provider: detectProvider(client), model: options.model }),
         async generateStream(
             systemPrompt: string,
             messages: string,

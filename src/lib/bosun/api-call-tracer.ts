@@ -1,55 +1,13 @@
+import type { ApiCallTrace, ApiCallTracer } from '@recombine-ai/telescope'
 import { Logger } from '../interfaces'
 
 /**
- * Generic API-call tracing used across tools (Bosun, Telescope, generated OpenAPI clients, etc).
+ * These shapes are owned by `@recombine-ai/telescope` and re-exported here so existing imports from
+ * `@recombine-ai/engine` keep resolving.
  *
- * The OpenAPI SDK can describe *what* was called (operation/method/path + inputs) but it typically cannot infer
- * your domain "call"/"conversation" identifier. To get a per-call UI timeline, scope your tracer in the app
- * layer by injecting `conversationId` onto every `ApiCallTrace` before passing it to the SDK.
- */
-/**
  * @deprecated Use the analog from @recombine-ai/telescope instead.
  */
-export type ApiCallTrace = {
-    /** Unique ID for the trace */
-    traceId?: string
-
-    /** Identifier used to group traces to the same call/conversation */
-    conversationId?: string
-
-    /** Optional, to group traces within a broader context */
-    scopeId?: string
-
-    /** Human-readable operation name */
-    operationName: string
-    method: string
-    path: string
-
-    baseUrl?: string
-
-    /** Raw request details (will typically be stringified by storage) */
-    request?: unknown
-
-    /** Raw response details (will typically be stringified by storage) */
-    response?: unknown
-
-    status?: number
-    ok?: boolean
-    durationMs?: number
-
-    error?: unknown
-
-    /** Timestamp in milliseconds */
-    createdAt: number
-}
-
-/**
- * @deprecated Use the analog from @recombine-ai/telescope instead.
- */
-export interface ApiCallTracer {
-    addApiCallTrace(trace: ApiCallTrace): void
-    flush(): Promise<void>
-}
+export type { ApiCallTrace, ApiCallTracer } from '@recombine-ai/telescope'
 
 /**
  * @deprecated Use the analog from @recombine-ai/telescope instead.

@@ -102,7 +102,9 @@ function getOptimizedFetch(logger: Logger, url: string) {
         })
 
         if (response.statusCode === 429) {
-            console.warn('Quota limit exceeded.')
+            // Could be either throttling or genuine quota exhaustion — the SDK will throw and
+            // `reportProviderError` makes that call from the error body. This is only a breadcrumb.
+            logger.debug('LLM provider returned 429', { url: requestUrl })
         }
 
         // Create a proper Response with streaming support

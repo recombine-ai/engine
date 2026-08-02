@@ -19,6 +19,7 @@ import { createStubStepTracer, StepTrace } from './bosun/step-tracer'
 import { createStubRegistry, stdPrompt } from './step-registry'
 import { AIEngine, EngineConfig } from './interfaces/engine'
 import { LlmAdapter } from './interfaces/adapter'
+import { reportProviderError } from './monitoring'
 
 const STRUCTURED_RESPONSE_MAX_ATTEMPTS = 3
 
@@ -167,6 +168,13 @@ export function createAIEngine<CTX extends object>(cfg: EngineConfig = {}): AIEn
                 logger.log(`AI Engine, executing ${step.name}`)
                 await step.execute(response, conversation, ctx, state)
             } catch (err) {
+                // Before `err` is normalised into an `Error`, which would drop the SDK's status and
+                // headers. Non-provider failures are ignored by the classifier.
+                reportProviderError(err, {
+                    logger,
+                    eventTracer: cfg.eventTracer,
+                    providerInfo: step.model.getProviderInfo?.(),
+                })
                 const error = err instanceof Error ? err : new Error(String(err))
                 stepTrace.error = error
                 try {
@@ -316,10 +324,7 @@ class WorkflowState<CTX> {
     private lastRewindTo = 0
     readonly runId: string
 
-    constructor(
-        private logger: Logger,
-        private steps: WorkflowStep<CTX>[],
-    ) {
+    constructor(private logger: Logger, private steps: WorkflowStep<CTX>[]) {
         this.runId = randomUUID()
     }
 

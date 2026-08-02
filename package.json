@@ -39,6 +39,7 @@
         "vitest": "^3.0.6"
     },
     "dependencies": {
+        "@recombine-ai/telescope": "^0.3.0",
         "nunjucks": "^3.2.4",
         "openai": "6.8.1",
         "undici": "^7.25.0",

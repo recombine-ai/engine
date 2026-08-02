@@ -1,3 +1,4 @@
+import type { EventTracer } from '@recombine-ai/telescope'
 import { Environment } from 'nunjucks'
 import { StepRegistry, StepTracer } from '../bosun'
 import { Conversation, Message } from './conversation'
@@ -62,6 +63,12 @@ export interface EngineConfig {
     logger?: Logger
     /** traces received prompt, rendered prompt, context and other useful info about LLM execution */
     stepTracer?: StepTracer
+
+    /**
+     * Emits monitoring events (provider auth/quota failures) for alerting. Without one those
+     * failures are still logged and still thrown, they just do not raise an alarm.
+     */
+    eventTracer?: EventTracer
 
     /** registers steps in workflow to be available in Bosun IDE */
     stepRegistry?: StepRegistry

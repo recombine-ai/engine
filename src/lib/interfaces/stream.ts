@@ -1,7 +1,9 @@
+import type { EventTracer } from '@recombine-ai/telescope'
 import { Environment } from 'nunjucks'
 import { Message } from './conversation'
 import { StepRegistry, StepTracer } from '../bosun'
 import { PromptFile } from '../prompt-fs'
+import { LlmProviderInfo } from './adapter'
 import { Logger } from './other'
 
 export interface AIStreamEngine<CTX extends {}> {
@@ -24,6 +26,11 @@ export interface StreamingEngineConfig {
     stepRegistry?: StepRegistry
     /** traces received prompt, rendered prompt, context and other useful info about LLM execution */
     stepTracer?: StepTracer
+    /**
+     * Emits monitoring events (provider auth/quota failures) for alerting. Without one those
+     * failures are still logged and still thrown, they just do not raise an alarm.
+     */
+    eventTracer?: EventTracer
     /** Optional nunjucks Environment to customize prompt rendering.  */
     nunjucksEnv?: Environment
 }
@@ -57,6 +64,11 @@ export interface LlmStreamAdapter {
     generateStream: (systemPrompt: string, messages: string) => Promise<ReadableStream<string>>
     /** Returns adapter's configuration/options for tracing */
     getOptions: () => unknown
+    /**
+     * Identifies the provider, so auth/quota failures can name it. Optional: adapters written
+     * before this existed keep working, their failures are just reported as provider `unknown`.
+     */
+    getProviderInfo?: () => LlmProviderInfo
 }
 
 export interface ResponseChunk {

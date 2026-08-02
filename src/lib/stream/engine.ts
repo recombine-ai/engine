@@ -12,6 +12,7 @@ import {
     Transcript,
     StreamWorkflowConfig,
 } from '../interfaces'
+import { reportProviderError } from '../monitoring'
 import { stdPrompt } from '../step-registry'
 import { agentFilter, composeTokenTransformers } from './token-transformers'
 
@@ -76,6 +77,13 @@ export function createAIStreamEngine<CTX extends {}>(
                 mainStepStream = await model.generateStream(renderedPrompt, stringifiedConversation)
             } catch (error) {
                 logger.error('AI Engine Stream: LLM error', { error })
+                // 401s and 429s surface here: the SDK resolves `create()` only once the response
+                // headers are in, so an auth or quota rejection never reaches the stream body.
+                reportProviderError(error, {
+                    logger,
+                    eventTracer: cfg.eventTracer,
+                    providerInfo: model.getProviderInfo?.(),
+                })
                 mainStepTrace.error = error instanceof Error ? error : new Error(String(error))
                 stepTracer.addStepTrace(mainStepTrace)
                 await stepTracer.flush()
@@ -100,7 +108,9 @@ export function createAIStreamEngine<CTX extends {}>(
             return new TransformStream<T, T>({
                 start() {
                     logger.debug(
-                        `[MARK] LLM stream created: ${(performance.now() - startTime).toFixed(2)}ms`,
+                        `[MARK] LLM stream created: ${(performance.now() - startTime).toFixed(
+                            2,
+                        )}ms`,
                     )
                 },
 

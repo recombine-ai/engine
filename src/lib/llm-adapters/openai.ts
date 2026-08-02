@@ -2,6 +2,7 @@ import { OpenAI } from 'openai'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import { type ZodType, toJSONSchema } from 'zod'
 import { LlmAdapter } from '../interfaces'
+import { detectProvider } from './provider'
 
 type OpenaiOptionsToSend = Omit<ChatCompletionCreateParamsBase, 'messages' | 'stream'>
 export type OpenAIChatOptions = Omit<OpenaiOptionsToSend, 'response_format'>
@@ -9,6 +10,7 @@ export type OpenAIChatOptions = Omit<OpenaiOptionsToSend, 'response_format'>
 export function createOpenAIAdapter(options: OpenAIChatOptions, client = new OpenAI()): LlmAdapter {
     return {
         getOptions: () => options,
+        getProviderInfo: () => ({ provider: detectProvider(client), model: options.model }),
         async generateResponse(
             systemPrompt: string,
             messages: string,
